@@ -186,6 +186,20 @@
   #epilogue .efin{font-family:Georgia,serif;font-style:italic;font-size:15px;color:#e8c974;margin:24px 0 0;line-height:2}
   #epilogue .ego{margin-top:30px;font-size:12px;letter-spacing:3px;color:#c8a24a;text-align:center}
   #epilogue .ego b{border:1px solid rgba(200,162,74,.5);padding:2px 8px;color:#f0d9a0}
+  /* ---------- v0.8: 快速旅行 ---------- */
+  #travelPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;padding:22px 28px;z-index:8;
+    background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));border:1px solid rgba(200,162,74,.5);
+    box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
+  #travelPanel.on{display:block}
+  #travelPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 14px;font-weight:400}
+  .travelRow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px}
+  .travelRow .tname{color:#efe6cd}
+  .travelRow .tdist{font-size:11px;color:#8f8468}
+  .travelBtn{border:1px solid rgba(200,162,74,.5);padding:6px 10px;font-size:11px;color:#e8c974;background:rgba(200,162,74,.08);cursor:pointer;pointer-events:auto}
+  .travelBtn:hover{background:rgba(200,162,74,.22)}
+  .travelBtn.off{opacity:.35;cursor:default}
+  .travelDemo{color:#8f8468;font-size:11px;margin-top:14px}
 </style>
 </head>
 <body>
@@ -303,6 +317,12 @@
       <div class="invHint">按 E / ESC 關閉　·　升級會即時套用</div>
     </div>
 
+    <div id="travelPanel" class="panel">
+      <h3>路牌 · 快速旅行</h3>
+      <div id="travelList"></div>
+      <div class="travelDemo">行近未發現嘅路牌會自動解鎖；解鎖狀態會寫入存檔。</div>
+      <div class="invHint">按 E / ESC 關閉</div>
+    </div>
     <div id="prompt">Ｅ　對話</div>
     <div id="toast"></div>
     <div id="hurt"></div>
@@ -344,7 +364,7 @@
       <div class="tstart" id="titleStart">按 <b>ENTER</b> 開始</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.7 · 47 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.8 · 56 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -521,6 +541,17 @@ const AudioFX = (function(){
 const pathPts = [[1240,1520],[1560,1600],[1920,1720],[2320,1860],[2760,2000],[3200,2160],[3620,2320],[3980,2460]];
 const swamp = {x:4160,y:2670,rx:660,ry:430};
 const pond = {x:1000,y:2500,rx:430,ry:250};
+const TRAVEL = [
+  {id:'village',   name:'村莊',   x:1440, y:1400},
+  {id:'mill',      name:'磨坊',   x:3860, y:2410},
+  {id:'graveyard', name:'墓園',   x:2784, y:1880},
+  {id:'pond',      name:'池塘',   x:1180, y:2380},
+  {id:'tower',     name:'廢塔',   x:4700, y:980},
+  {id:'camp',      name:'伐木營地', x:4800, y:3100}
+];
+const pondNestPos = {x:1010, y:2530};
+const pondLadyPos = {x:1150, y:2300};
+const runePos = {x:4720, y:845};
 
 const huts = [
   {x:910,y:1010,w:140,h:100,rot:-0.14},
@@ -602,7 +633,14 @@ for(let i=0;i<200;i++){
 for(let i=0;i<30;i++){
   addProp({kind:'bones', x:nest.x+rand(-100,100), y:nest.y+rand(-80,90), r:rand(4,10), rot:rand(0,TAU)});
 }
-addProp({kind:'signpost', x:1440, y:1400});
+TRAVEL.forEach(p=>{
+  addProp({kind:'signpost', x:p.x, y:p.y, id:p.id});
+  addSolid({type:'circle', x:p.x, y:p.y+18, r:6});
+});
+// 池塘沼屍巢 / 廢塔石碑
+addProp({kind:'pondnest', x:pondNestPos.x, y:pondNestPos.y, r:34});
+addProp({kind:'runestone', x:runePos.x, y:runePos.y});
+addSolid({type:'circle', x:runePos.x, y:runePos.y+6, r:12});
 
 // 墓園（夜泣出沒）與磨坊寶箱
 [[2470,1760],[2620,1850],[2340,1960]].forEach(g=>{
@@ -697,106 +735,122 @@ addProp({kind:'cart', x:640, y:2380, rot:1.2});
 addSolid({type:'circle', x:640, y:2386, r:15});
 
 /* =========================================================
-   3. 地面預渲染
+   3. 地面分塊（tile）預渲染
    ========================================================= */
-const ground = document.createElement('canvas');
-ground.width=W; ground.height=H;
-(function paintGround(){
-  const g=ground.getContext('2d');
+const TILE=512, TILE_MAX=40;
+const tileCache=new Map();
+
+function drawGroundPath(g,width,color,alpha){
+  g.strokeStyle=color; g.globalAlpha=alpha; g.lineWidth=width; g.lineCap='round'; g.lineJoin='round';
+  g.beginPath(); g.moveTo(pathPts[0][0],pathPts[0][1]);
+  for(let i=1;i<pathPts.length;i++){
+    const p=pathPts[i], q=pathPts[i-1];
+    const mx=(p[0]+q[0])/2, my=(p[1]+q[1])/2;
+    g.quadraticCurveTo(q[0],q[1],mx,my);
+  }
+  g.lineTo(pathPts[pathPts.length-1][0],pathPts[pathPts.length-1][1]);
+  g.stroke(); g.globalAlpha=1;
+}
+
+function getTile(tx,ty){
+  const key=tx+','+ty;
+  let cv=tileCache.get(key);
+  if(cv){ tileCache.delete(key); tileCache.set(key,cv); return cv; }
+  cv=document.createElement('canvas'); cv.width=TILE; cv.height=TILE;
+  const g=cv.getContext('2d');
+  const ox=tx*TILE, oy=ty*TILE;
+  const r=mulberry32(((tx*374761393 + ty*668265263) ^ 0x9e3779b9)>>>0);
+  g.save(); g.translate(-ox,-oy);
+
+  // 基礎漸變（用世界座標，跨 tile 連續）
   const grd=g.createLinearGradient(0,0,W,H);
   grd.addColorStop(0,'#1c2a21'); grd.addColorStop(.5,'#1a261f'); grd.addColorStop(1,'#141f1c');
-  g.fillStyle=grd; g.fillRect(0,0,W,H);
+  g.fillStyle=grd; g.fillRect(ox,oy,TILE,TILE);
 
-  // 大塊色斑
-  const r2=mulberry32(99);
-  for(let i=0;i<1040;i++){
-    const x=r2()*W, y=r2()*H, rr=40+r2()*180;
-    g.fillStyle = r2()<.5 ? 'rgba(38,54,40,.20)' : 'rgba(12,18,16,.18)';
-    g.beginPath(); g.arc(x,y,rr,0,TAU); g.fill();
+  // 大塊色斑：以全域 300px 格網決定，鄰近 tile 會畫返同一批，邊界無縫
+  const CELL=300;
+  const cx0=Math.floor((ox-360)/CELL), cx1=Math.floor((ox+TILE+360)/CELL);
+  const cy0=Math.floor((oy-360)/CELL), cy1=Math.floor((oy+TILE+360)/CELL);
+  for(let cy=cy0;cy<=cy1;cy++){
+    for(let cx=cx0;cx<=cx1;cx++){
+      const b=mulberry32(((cx*73856093) ^ (cy*19349663))>>>0);
+      const x=cx*CELL+b()*CELL, y=cy*CELL+b()*CELL, rr=40+b()*180;
+      if(x+rr<ox-10||x-rr>ox+TILE+10||y+rr<oy-10||y-rr>oy+TILE+10) continue;
+      g.fillStyle = b()<.5 ? 'rgba(38,54,40,.20)' : 'rgba(12,18,16,.18)';
+      g.beginPath(); g.arc(x,y,rr,0,TAU); g.fill();
+    }
   }
+
   // 村莊空地
   const vg=g.createRadialGradient(1200,1200,60,1200,1200,660);
   vg.addColorStop(0,'rgba(72,60,42,.55)'); vg.addColorStop(1,'rgba(72,60,42,0)');
   g.fillStyle=vg; g.beginPath(); g.arc(1200,1200,660,0,TAU); g.fill();
 
-  // 路
-  function drawPath(width,color,alpha){
-    g.strokeStyle=color; g.globalAlpha=alpha; g.lineWidth=width; g.lineCap='round'; g.lineJoin='round';
-    g.beginPath(); g.moveTo(pathPts[0][0],pathPts[0][1]);
-    for(let i=1;i<pathPts.length;i++){
-      const p=pathPts[i], q=pathPts[i-1];
-      const mx=(p[0]+q[0])/2, my=(p[1]+q[1])/2;
-      g.quadraticCurveTo(q[0],q[1],mx,my);
-    }
-    g.lineTo(pathPts[pathPts.length-1][0],pathPts[pathPts.length-1][1]);
-    g.stroke(); g.globalAlpha=1;
-  }
-  drawPath(146,'rgba(40,34,26,.8)',1);
-  drawPath(115,'rgba(66,56,42,.9)',1);
-  drawPath(82,'rgba(84,72,53,.72)',1);
+  // 路（世界座標，canvas 自動裁切）
+  drawGroundPath(g,146,'rgba(40,34,26,.8)',1);
+  drawGroundPath(g,115,'rgba(66,56,42,.9)',1);
+  drawGroundPath(g,82,'rgba(84,72,53,.72)',1);
 
   // 泥土斑點
-  for(let i=0;i<5600;i++){
-    const t=r2(), idx=Math.min(pathPts.length-2, Math.floor(t*(pathPts.length-1)));
-    const a=pathPts[idx], b=pathPts[idx+1];
-    const k=r2();
-    const x=lerp(a[0],b[0],k)+rand(-90,90), y=lerp(a[1],b[1],k)+rand(-90,90);
-    g.fillStyle=r2()<.5?'rgba(120,102,74,.22)':'rgba(38,30,22,.25)';
-    g.beginPath(); g.arc(x,y,1+r2()*2.6,0,TAU); g.fill();
+  for(let i=0;i<110;i++){
+    const x=ox+r()*TILE, y=oy+r()*TILE;
+    if(!nearPath(x,y,120)) continue;
+    g.fillStyle=r()<.5?'rgba(120,102,74,.22)':'rgba(38,30,22,.25)';
+    g.beginPath(); g.arc(x,y,1+r()*2.6,0,TAU); g.fill();
   }
 
   // 沼澤
   const sw=g.createRadialGradient(swamp.x,swamp.y,20,swamp.x,swamp.y,swamp.rx);
   sw.addColorStop(0,'rgba(22,42,36,.95)'); sw.addColorStop(.7,'rgba(20,36,30,.75)'); sw.addColorStop(1,'rgba(20,34,28,0)');
   g.fillStyle=sw; g.beginPath(); g.ellipse(swamp.x,swamp.y,swamp.rx,swamp.ry,0,0,TAU); g.fill();
-  for(let i=0;i<280;i++){
-    const a=r2()*TAU, rr=Math.sqrt(r2());
+  for(let i=0;i<10;i++){
+    const a=r()*TAU, rr=Math.sqrt(r());
     const x=swamp.x+Math.cos(a)*swamp.rx*rr, y=swamp.y+Math.sin(a)*swamp.ry*rr;
-    g.fillStyle='rgba(64,96,80,.18)';
-    g.beginPath(); g.ellipse(x,y,20+r2()*60,6+r2()*16,0,0,TAU); g.fill();
+    g.fillStyle='rgba(64,96,80,.16)';
+    g.beginPath(); g.ellipse(x,y,20+r()*60,6+r()*16,0,0,TAU); g.fill();
   }
-  // 水面反光
-  for(let i=0;i<160;i++){
+  for(let i=0;i<6;i++){
     const x=swamp.x+rand(-swamp.rx*.8,swamp.rx*.8), y=swamp.y+rand(-swamp.ry*.8,swamp.ry*.8);
     g.strokeStyle='rgba(120,160,140,.10)'; g.lineWidth=1;
-    g.beginPath(); g.ellipse(x,y,6+r2()*18,2+r2()*4,0,0,TAU); g.stroke();
+    g.beginPath(); g.ellipse(x,y,6+r()*18,2+r()*4,0,0,TAU); g.stroke();
   }
 
   // 池塘
   const pd=g.createRadialGradient(pond.x,pond.y,20,pond.x,pond.y,pond.rx);
   pd.addColorStop(0,'rgba(20,38,44,.95)'); pd.addColorStop(.7,'rgba(18,34,40,.78)'); pd.addColorStop(1,'rgba(18,32,38,0)');
   g.fillStyle=pd; g.beginPath(); g.ellipse(pond.x,pond.y,pond.rx,pond.ry,0,0,TAU); g.fill();
-  for(let i=0;i<90;i++){
-    const a=r2()*TAU, rr=Math.sqrt(r2());
+  for(let i=0;i<8;i++){
+    const a=r()*TAU, rr=Math.sqrt(r());
     const x=pond.x+Math.cos(a)*pond.rx*rr, y=pond.y+Math.sin(a)*pond.ry*rr;
     g.fillStyle='rgba(60,90,100,.16)';
-    g.beginPath(); g.ellipse(x,y,18+r2()*50,5+r2()*14,0,0,TAU); g.fill();
+    g.beginPath(); g.ellipse(x,y,18+r()*50,5+r()*14,0,0,TAU); g.fill();
   }
-  for(let i=0;i<60;i++){
+  for(let i=0;i<5;i++){
     const x=pond.x+rand(-pond.rx*.8,pond.rx*.8), y=pond.y+rand(-pond.ry*.8,pond.ry*.8);
     g.strokeStyle='rgba(120,160,180,.10)'; g.lineWidth=1;
-    g.beginPath(); g.ellipse(x,y,6+r2()*16,2+r2()*4,0,0,TAU); g.stroke();
+    g.beginPath(); g.ellipse(x,y,6+r()*16,2+r()*4,0,0,TAU); g.stroke();
   }
 
-  // 草
-  for(let i=0;i<21000;i++){
-    const x=r2()*W, y=r2()*H;
-    const inSwamp = Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry) < .95;
-    const inPond = Math.hypot((x-pond.x)/pond.rx,(y-pond.y)/pond.ry) < .95;
-    if(inSwamp||inPond) continue;
-    const h=2+r2()*5;
-    g.strokeStyle = r2()<.5 ? 'rgba(52,74,52,.5)' : 'rgba(30,46,34,.55)';
+  // 草（每個 tile 約 320 條）
+  for(let i=0;i<320;i++){
+    const x=ox+r()*TILE, y=oy+r()*TILE;
+    if(Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry) < .95) continue;
+    if(Math.hypot((x-pond.x)/pond.rx,(y-pond.y)/pond.ry) < .95) continue;
+    const h=2+r()*5;
+    g.strokeStyle = r()<.5 ? 'rgba(52,74,52,.5)' : 'rgba(30,46,34,.55)';
     g.lineWidth=1;
     g.beginPath(); g.moveTo(x,y); g.lineTo(x+rand(-2,2), y-h); g.stroke();
   }
   // 落葉
-  for(let i=0;i<2800;i++){
-    const x=r2()*W, y=r2()*H;
-    g.fillStyle = r2()<.5?'rgba(96,70,40,.35)':'rgba(60,44,26,.3)';
-    g.beginPath(); g.ellipse(x,y,1.5+r2()*2.5,.8+r2()*1.4,r2()*TAU,0,TAU); g.fill();
+  for(let i=0;i<44;i++){
+    const x=ox+r()*TILE, y=oy+r()*TILE;
+    g.fillStyle = r()<.5?'rgba(96,70,40,.35)':'rgba(60,44,26,.3)';
+    g.beginPath(); g.ellipse(x,y,1.5+r()*2.5,.8+r()*1.4,r()*TAU,0,TAU); g.fill();
   }
-  // 環境遮蔽（樹、石、屋、井、車、石柱下的暗影）
+
+  // 環境遮蔽（只計 tile 附近 props，跨 tile 連續）
   for(const p of props){
+    if(p.x<ox-220||p.x>ox+TILE+220||p.y<oy-220||p.y>oy+TILE+220) continue;
     let rr=0;
     if(p.kind==='tree') rr=p.r*1.15;
     else if(p.kind==='rock') rr=p.r*1.2;
@@ -805,12 +859,31 @@ ground.width=W; ground.height=H;
     else if(p.kind==='well'||p.kind==='cart') rr=30;
     else if(p.kind==='pillar'||p.kind==='deadtree') rr=20;
     else if(p.kind==='shrine') rr=26;
+    else if(p.kind==='signpost') rr=18;
     if(!rr) continue;
     const a=g.createRadialGradient(p.x,p.y+4,rr*.2,p.x,p.y+4,rr);
     a.addColorStop(0,'rgba(0,0,0,.28)'); a.addColorStop(1,'rgba(0,0,0,0)');
     g.fillStyle=a; g.beginPath(); g.ellipse(p.x,p.y+4,rr,rr*.55,0,0,TAU); g.fill();
   }
-})();
+  g.restore();
+
+  tileCache.set(key,cv);
+  if(tileCache.size>TILE_MAX){
+    const first=tileCache.keys().next().value;
+    tileCache.delete(first);
+  }
+  return cv;
+}
+
+function drawGround(){
+  const tx0=Math.floor(cam.x/TILE), ty0=Math.floor(cam.y/TILE);
+  const tx1=Math.floor((cam.x+VW)/TILE), ty1=Math.floor((cam.y+VH)/TILE);
+  for(let ty=ty0;ty<=ty1;ty++){
+    for(let tx=tx0;tx<=tx1;tx++){
+      ctx.drawImage(getTile(tx,ty), tx*TILE-cam.x, ty*TILE-cam.y);
+    }
+  }
+}
 
 /* =========================================================
    4. 狀態
@@ -823,6 +896,9 @@ const G = {
   story:{truth:null, seal:null, hunterMet:false, locketFound:false, shrineDone:false},
   side:{stage:0, cr:0, bogcrone:false},   // 支線：失蹤的補給車
   were:{stage:0, marks:0, outcome:null}, // 支線：狼人詛咒
+  pond:{stage:0, killed:0, nest:false}, // 支線：池塘沼屍
+  tower:{stage:0},                    // 支線：廢塔夜泣王
+  travel:{unlocked:['village'], last:'village'},
   dialog:null, toastTimer:0, bossOn:false, helped:false,
   saveTimer:0, journal:false, prologue:false,
   clickFx:[], minimapT:0, music:0, useDirs:true, _bossMusic:false, transform:null, flash:0
@@ -971,6 +1047,7 @@ for(let i=0;i<8;i++){
 const boardPos = {x:1380, y:1488};
 const clawPos = [[1960,1400],[2120,1520],[2240,1280]];
 const wereLair = {x:2160, y:1200};
+
 const sideHagPos = {x:4660, y:2930};
 const sideCrates = [[4380,2716],[4516,2956],[4676,2820]];
 
@@ -992,7 +1069,8 @@ function spawnEnemy(type, x, y){
     wisp:{hp:58, maxHp:58, speed:150, dmg:12, range:50, windup:.42, cd:1.05, xp:38, name:'夜泣'},
     bogcrone:{hp:230, maxHp:230, speed:88, dmg:17, range:70, windup:.62, cd:1.3, xp:140, name:'沼婆'},
     tombwisp:{hp:430, maxHp:430, speed:92, dmg:20, range:78, windup:.72, cd:1.4, xp:260, name:'墓中夜泣'},
-    werewolf:{hp:320, maxHp:320, speed:168, dmg:18, range:62, windup:.44, cd:1.0, xp:220, name:'狼人'}
+    werewolf:{hp:320, maxHp:320, speed:168, dmg:18, range:62, windup:.44, cd:1.0, xp:220, name:'狼人'},
+    wispking:{hp:420, maxHp:420, speed:118, dmg:24, range:86, windup:.62, cd:1.2, xp:320, name:'夜泣王'}
   }[type];
   const e = Object.assign({
     kind:'enemy', type, x, y, r: (type==='bogcrone'||type==='tombwisp')?22:14,
@@ -1022,7 +1100,10 @@ function resetGame(){
   G.story={truth:null, seal:null, hunterMet:false, locketFound:false, shrineDone:false};
   G.side={stage:0, cr:0, bogcrone:false};
   G.were={stage:0, marks:0, outcome:null};
-  for(const p of props){ if(p.kind==='claw') p.taken=false; }
+  G.pond={stage:0, killed:0, nest:false};
+  G.tower={stage:0};
+  G.travel={unlocked:['village'], last:'village'};
+  for(const p of props){ if(p.kind==='claw') p.taken=false; if(p.kind==='pondnest') p.burnt=false; }
 
   player.gear={weapon:0, armor:0};
   player.mats={ore:0, hide:0, dust:0};
@@ -1033,7 +1114,8 @@ function resetGame(){
     makeNPC('fisher','漁夫', 1624, 1424, '#4c6a72'),
     makeNPC('hunter','獵人 米爾', 2176, 1684, '#4a5a3a'),
     makeNPC('smith','鐵匠 老莫', 1170, 1612, '#6b4a32'),
-    makeNPC('widow','寡婦 艾蓮', 1484, 1572, '#5a4a6a')
+    makeNPC('widow','寡婦 艾蓮', 1484, 1572, '#5a4a6a'),
+    makeNPC('pondlady','漁婦 阿珍', pondLadyPos.x, pondLadyPos.y, '#4c6a72')
   ];
 
   enemies = [
@@ -1107,6 +1189,9 @@ addEventListener('keydown', e=>{
   }
   if(G.mode==='smith'){
     if(e.code==='Escape'||e.code==='KeyE') closeSmith();
+  }
+  if(G.mode==='travel'){
+    if(e.code==='Escape'||e.code==='KeyE') closeTravel();
   }
   if(G.mode==='dialog'){
     if(e.code>='Digit1'&&e.code<='Digit4') chooseOption(+e.code.slice(-1)-1);
@@ -1198,6 +1283,9 @@ function mouseAction(button, w){
   if(cr){ player.pending={kind:'crate', ref:cr}; player.target=null; player.moveTo={x:cr.x,y:cr.y+40}; return; }
   const clawP=props.find(p=>p.kind==='claw' && !p.taken && G.were.stage===1 && Math.hypot(p.x-w.x,p.y-w.y)<42);
   if(clawP){ player.pending={kind:'claw', ref:clawP}; player.target=null; player.moveTo={x:clawP.x, y:clawP.y+38}; return; }
+  if(Math.hypot(runePos.x-w.x,runePos.y-w.y)<42){ player.pending={kind:'rune'}; player.target=null; player.moveTo={x:runePos.x,y:runePos.y+56}; return; }
+  const spMouse=TRAVEL.find(p=>Math.hypot(p.x-w.x,p.y-w.y)<45);
+  if(spMouse){ player.pending={kind:'travel', ref:spMouse}; player.target=null; player.moveTo={x:spMouse.x, y:spMouse.y+46}; return; }
   if(Math.hypot(boardPos.x-w.x, boardPos.y-w.y)<48){
     player.pending={kind:'board'}; player.target=null; player.moveTo={x:boardPos.x, y:boardPos.y+46}; return;
   }
@@ -1230,6 +1318,7 @@ function tryPending(){
       else if(n.id==='smith') openSmith();
       else if(n.id==='widow') widowDialog();
       else if(n.id==='husband') husbandDialog();
+      else if(n.id==='pondlady') pondLadyDialog();
       else hunterDialog();
     }
   } else if(p.kind==='loot'){
@@ -1242,6 +1331,10 @@ function tryPending(){
   } else if(p.kind==='claw'){
     const c=p.ref;
     if(!c.taken && dist(player,c)<80){ player.pending=null; clawInteract(c); }
+  } else if(p.kind==='rune'){
+    if(dist(player,runePos)<110){ player.pending=null; runeDialog(); }
+  } else if(p.kind==='travel'){
+    if(dist(player,p.ref)<100){ player.pending=null; openTravel(); }
   } else if(p.kind==='board'){
     if(dist(player,boardPos)<92){ player.pending=null; boardInteract(); }
   } else if(p.kind==='chest'){
@@ -1343,6 +1436,12 @@ function hitEnemy(e, dmg, kb, ang){
 function killEnemy(e){
   e.state='dead'; e.deadT=0; G.kills++; G.xp+=e.xp;
   floatText(e.x,e.y-e.r*2, '+'+e.xp+' XP', '#c8a24a');
+  if(e.pond){
+    G.pond.killed++;
+    floatText(e.x,e.y-54,'池塘沼屍 '+Math.min(3,G.pond.killed)+'/3','#c8a24a');
+    if(G.pond.killed>=3 && !G.pond.nest) toast('池塘沼屍已清','用炎印燒掉水邊巢穴');
+    updateQuestUI();
+  }
   if(e.type==='wisp'){
     player.inv.trophies.wisp_essence=(player.inv.trophies.wisp_essence||0)+1;
     player.mats.dust+=1;
@@ -1370,6 +1469,12 @@ function killEnemy(e){
     toast('狼人已死','回去告訴寡婦');
     updateQuestUI();
   }
+  if(e.type==='wispking'){
+    G.tower.stage=2;
+    G.gold+=250; player.mats.dust+=4;
+    toast('夜泣王已消散','+250 克朗、妖泣塵 ×4');
+    updateQuestUI();
+  }
   if(e.type==='tombwisp'){
     loot.push({x:e.x,y:e.y+20,item:'heart',bob:0});
     player.mats.dust+=3;
@@ -1383,6 +1488,11 @@ function killEnemy(e){
     floatText(e.x,e.y-60,'沼婆倒下了','#f0d9a0');
     G.shake=18;
     for(let i=0;i<30;i++) spawnParticle(e.x,e.y-20,rand(-160,160),rand(-160,80),rand(.5,1.4),rand(2,5),'rgba(120,200,160,.8)',40,true);
+  }
+  if(e.type==='wispking'){
+    G.bossOn=false; document.getElementById('bossbar').classList.remove('on');
+    G.shake=20;
+    for(let i=0;i<50;i++) spawnParticle(e.x,e.y-20,rand(-180,180),rand(-190,90),rand(.5,1.5),rand(2,5),'rgba(160,210,245,.8)',40,true);
   }
   if(e.type==='tombwisp'){
     G.bossOn=false; document.getElementById('bossbar').classList.remove('on');
@@ -1476,6 +1586,7 @@ function castSign(name){
       }
     }
     if(G.quest===2 && dist(player,nest)<150) igniteNest();
+    if(G.pond.stage===1 && G.pond.killed>=3 && !G.pond.nest && dist(player,pondNestPos)<150) ignitePondNest();
   }
   if(name==='aard'){
     G.shake=Math.max(G.shake,7);
@@ -1562,6 +1673,13 @@ function updateQuestUI(){
     if(G.were.stage>0){
       const wtxt = G.were.stage===1 ? ('爪痕 <b>'+G.were.marks+'/3</b>') : (G.were.stage===2 ? '去北邊巢穴' : (G.were.stage===3 ? '回報寡婦' : '已完成'));
       side.innerHTML += '<br>支線：狼人的詛咒　'+wtxt;
+    }
+    if(G.pond.stage>0){
+      const ptxt = G.pond.stage===1 ? ('沼屍 '+Math.min(3,G.pond.killed)+'/3'+(G.pond.nest?' · 巢已燒':' · 巢未燒')) : (G.pond.stage===2?'回報漁婦 阿珍':'已完成');
+      side.innerHTML += '<br>支線：池塘沼屍　'+ptxt;
+    }
+    if(G.tower.stage>0){
+      side.innerHTML += '<br>支線：廢塔夜泣王　'+(G.tower.stage===1?'擊敗牠':'已完成');
     }
   }
   gold.textContent='◈ '+G.gold;
@@ -1693,6 +1811,10 @@ function interact(){
   if(crate){ pickupCrate(crate); return; }
   const claw=props.find(p=>p.kind==='claw' && !p.taken && G.were.stage===1 && dist(player,p)<72);
   if(claw){ clawInteract(claw); return; }
+  if(dist(player,runePos)<105){ runeDialog(); return; }
+  if(G.pond.stage===1 && G.pond.killed>=3 && !G.pond.nest && dist(player,pondNestPos)<110){ toast('用炎印燒掉巢穴','按 1 施放炎印'); return; }
+  const spNow=TRAVEL.find(p=>dist(player,p)<100);
+  if(spNow){ openTravel(); return; }
   if(dist(player,boardPos)<92){ boardInteract(); return; }
   if(!chestOpened && dist(player,chestPos)<95){ openChest(); return; }
   if(G.quest===6 && dist(player,shrinePos)<95){ shrineInteract(); return; }
@@ -1707,6 +1829,7 @@ function interact(){
       else if(n.id==='smith') openSmith();
       else if(n.id==='widow') widowDialog();
       else if(n.id==='husband') husbandDialog();
+      else if(n.id==='pondlady') pondLadyDialog();
       else hunterDialog();
       return;
     }
@@ -1873,6 +1996,98 @@ function werewolfDialog(){
     {text:'我還沒準備好。', act:closeDialog}
   ]);
 }
+/* ---- 支線：池塘沼屍 ---- */
+function pondLadyDialog(){
+  if(G.pond.stage===0){
+    showDialog('漁婦 阿珍',[
+      '池塘最近唔靜。',
+      '沼屍拖走咗我兩張網，仲有隻巢喺水邊。'
+    ], [
+      {text:'我去清。', act:acceptPond},
+      {text:'（離開）', act:closeDialog}
+    ]);
+  } else if(G.pond.stage===1){
+    const killed=G.pond.killed;
+    showDialog('漁婦 阿珍',[
+      '沼屍 <b>'+killed+'/3</b> 已清。',
+      killed>=3 ? '巢仲喺度——用炎印燒咗佢。' : '仲有 <b>'+(3-killed)+'</b> 隻。'
+    ], [
+      {text:'（離開）', act:closeDialog}
+    ]);
+  } else if(G.pond.stage===2){
+    showDialog('漁婦 阿珍',[
+      '啪……池塘靜晒。',
+      '呢啲你拎住。'
+    ], [
+      {text:'（收下）', act:()=>{
+        G.pond.stage=3; G.gold+=150; player.inv.fishOil+=2; G.xp+=100;
+        closeDialog(); checkLevel();
+        toast('委託完成：池塘沼屍','+150 克朗、魚油膏 ×2、100 XP');
+        updateQuestUI(); saveGame();
+      }}
+    ]);
+  } else {
+    showDialog('漁婦 阿珍',['多謝你，灰狼。'],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+function acceptPond(){
+  if(G.pond.stage!==0){ closeDialog(); return; }
+  G.pond.stage=1;
+  spawnPondDrowners();
+  closeDialog();
+  toast('接受委託：池塘沼屍','清 3 隻沼屍，再用炎印燒巢');
+  updateQuestUI(); saveGame();
+}
+function spawnPondDrowners(){
+  const spots=[[1120,2260],[1000,2430],[1220,2520]];
+  let n=0;
+  for(const s of spots){
+    if(enemies.some(e=>e.pond && e.state!=='dead' && Math.hypot(e.x-s[0],e.y-s[1])<70)) continue;
+    const e=spawnEnemy('bogdweller', s[0]+rand(-18,18), s[1]+rand(-18,18));
+    e.pond=true; e.aggro=true; e.uid='pond_'+(n++);
+    enemies.push(e);
+  }
+}
+function ignitePondNest(){
+  if(G.pond.stage!==1 || G.pond.killed<3 || G.pond.nest) return;
+  G.pond.nest=true;
+  const p=props.find(v=>v.kind==='pondnest'); if(p) p.burnt=true;
+  for(let i=0;i<44;i++) spawnParticle(pondNestPos.x+rand(-22,22), pondNestPos.y-6+rand(-12,12), rand(-80,80), rand(-120,-10), rand(.4,1.1), rand(2,4), 'rgba(250,160,60,.8)', 20, true);
+  toast('沼屍巢已燒毀','返去搵漁婦 阿珍');
+  G.pond.stage=2;
+  updateQuestUI(); saveGame();
+}
+
+/* ---- 支線：廢塔夜泣王 ---- */
+function runeDialog(){
+  if(G.tower.stage===0){
+    showDialog('古老石碑',[
+      '碑文寫住：「以夜泣之名，沉睡於此。」',
+      '你摸到石面嘅裂縫，寒氣由腳底升上嚟。'
+    ], [
+      {text:'喚醒夜泣王。', act:()=>{
+        if(G.tower.stage!==0) return;
+        G.tower.stage=1; closeDialog(); spawnWraithKing();
+      }},
+      {text:'（離開）', act:closeDialog}
+    ]);
+  } else if(G.tower.stage===1){
+    toast('夜泣王仍然喺度','擊敗牠');
+  } else {
+    showDialog('古老石碑',['碑文暗咗。塔頂再冇聲音。'],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+function spawnWraithKing(){
+  if(enemies.some(e=>e.type==='wispking' && e.state!=='dead')) return;
+  const w=spawnEnemy('wispking', 4700, 900);
+  w.uid='wispking_1'; w.aggro=true; w.state='chase';
+  enemies.push(w);
+  G.bossOn=true;
+  document.getElementById('bossbar').classList.add('on');
+  const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='夜　泣　王';
+  toast('夜泣王甦醒','擊敗牠');
+  updateQuestUI(); saveGame();
+}
 function husbandDialog(){
   showDialog('艾蓮的丈夫',['多謝你，灰狼。','我唔記得發生咩事……但艾蓮話你救咗我。'],[{text:'好好活落去。',act:closeDialog}]);
 }
@@ -1951,6 +2166,50 @@ function costText(c){
   if(c.dust) parts.push('塵×'+c.dust);
   return parts.join('　');
 }
+/* ---- 快速旅行 ---- */
+function openTravel(){
+  if(G.mode!=='play') return;
+  G.mode='travel'; renderTravel();
+  document.getElementById('travelPanel').classList.add('on');
+}
+function closeTravel(){
+  if(G.mode==='travel'){
+    G.mode='play';
+    document.getElementById('travelPanel').classList.remove('on');
+  }
+}
+function renderTravel(){
+  const list=document.getElementById('travelList');
+  if(!list) return;
+  list.innerHTML=TRAVEL.map(p=>{
+    const un=G.travel.unlocked.includes(p.id);
+    const d=Math.round(Math.hypot(player.x-p.x, player.y-p.y)/10);
+    return '<div class="travelRow"><span class="tname">'+p.name+(p.id===G.travel.last?'　· 上次':'')+'</span>'+
+      '<span class="tdist">'+(un?d+' m':'未發現')+'</span>'+
+      '<button class="travelBtn'+(un?'':' off')+'" data-travel="'+p.id+'"'+(un?'':' disabled')+'>前往</button></div>';
+  }).join('');
+  list.querySelectorAll('[data-travel]').forEach(btn=>{
+    btn.addEventListener('click',()=>fastTravel(btn.dataset.travel));
+  });
+}
+function fastTravel(id){
+  const p=TRAVEL.find(v=>v.id===id);
+  if(!p || !G.travel.unlocked.includes(id)) return false;
+  player.x=p.x; player.y=p.y+52; player.moveTo=null; player.target=null; player.pending=null;
+  player.facing=Math.PI/2;
+  G.travel.last=id;
+  for(let i=0;i<24;i++) spawnParticle(player.x,player.y-10,rand(-70,70),rand(-90,10),rand(.4,1),rand(1,3),'rgba(232,201,116,.7)',30,true);
+  closeTravel(); toast('快速旅行',p.name);
+  updateQuestUI(); saveGame();
+  return true;
+}
+function unlockTravel(p){
+  if(G.travel.unlocked.includes(p.id)) return false;
+  G.travel.unlocked.push(p.id);
+  saveGame();
+  toast('發現傳送點：'+p.name,'按 E 開啟路牌快速旅行');
+  return true;
+}
 function doUpgrade(kind){
   const r=upgradeGear(kind);
   if(r.ok){ AudioFX.coin(); toast('升級成功', r.msg); }
@@ -2007,12 +2266,12 @@ function flashSave(){
   flashSave._t=setTimeout(()=>el.classList.remove('on'),1300);
 }
 function saveGame(){
-  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith') return;
+  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith' && G.mode!=='travel') return;
   try{
     const data={v:3, ts:Date.now(), level:G.level, xp:G.xp, gold:G.gold, quest:G.quest,
       hp:Math.round(player.hp), maxHp:player.maxHp, bonusDmg:player.bonusDmg, dmgMul:player.dmgMul,
       potions:player.potions, inv:player.inv, buffs:player.buffs, gear:player.gear, mats:player.mats,
-      x:Math.round(player.x), y:Math.round(player.y), kills:G.kills, story:G.story, side:G.side, were:G.were,
+      x:Math.round(player.x), y:Math.round(player.y), kills:G.kills, story:G.story, side:G.side, were:G.were, travel:G.travel, pond:G.pond, tower:G.tower,
       claws:props.filter(p=>p.kind==='claw').map(p=>!!p.taken),
       dead:enemies.filter(e=>e.state==='dead').map(e=>e.uid),
       loot:loot.map(l=>({x:Math.round(l.x), y:Math.round(l.y), item:l.item})),
@@ -2028,6 +2287,13 @@ function loadGame(){
   if(d.story) G.story=Object.assign({truth:null,seal:null,hunterMet:false,locketFound:false,shrineDone:false}, d.story);
   if(d.side) G.side=Object.assign({stage:0,cr:0,bogcrone:false}, d.side);
   if(d.were) G.were=Object.assign({stage:0,marks:0,outcome:null}, d.were);
+  if(d.travel){ G.travel=Object.assign({unlocked:['village'],last:'village'}, d.travel); }
+  if(!G.travel.unlocked.includes('village')) G.travel.unlocked.push('village');
+  if(d.pond){ G.pond=Object.assign({stage:0,killed:0,nest:false}, d.pond); }
+  if(d.tower){ G.tower=Object.assign({stage:0}, d.tower); }
+  { const pn=props.find(v=>v.kind==='pondnest'); if(pn) pn.burnt=!!G.pond.nest; }
+  if(G.pond.stage===1 && G.pond.killed<3) spawnPondDrowners();
+  if(G.tower.stage===1 && !enemies.some(e=>e.type==='wispking'&&e.state!=='dead')) spawnWraithKing();
   if(d.gear) player.gear=Object.assign({weapon:0,armor:0}, d.gear);
   if(d.mats) player.mats=Object.assign({ore:0,hide:0,dust:0}, d.mats);
   player.dmgMul=d.dmgMul||1; player.potions=(d.potions==null?3:d.potions);
@@ -2111,6 +2377,8 @@ function renderJournal(){
   if(G.story.locketFound) html+='<div class="jrow"><b>銅匣</b><span>莉婭的遺物，內有一張小畫像。</span></div>';
   if(G.story.hunterMet) html+='<div class="jrow"><b>米爾</b><span>墓園旁的獵人。佢話神龕封印裂咗。</span></div>';
   if(G.side.stage>0) html+='<div class="jrow"><b>補給車</b><span>商隊喺沼澤遇襲。補給箱 '+G.side.cr+'/3，沼婆'+(G.side.bogcrone?'已清':'未清')+'。</span></div>';
+  if(G.pond.stage>0) html+='<div class="jrow"><b>池塘</b><span>漁婦阿珍嘅委託。沼屍 '+Math.min(3,G.pond.killed)+'/3，巢'+(G.pond.nest?'已燒':'未燒')+'。</span></div>';
+  if(G.tower.stage>0) html+='<div class="jrow"><b>廢塔</b><span>石碑下嘅夜泣王。'+(G.tower.stage===1?'仍未擊敗':'已消散')+'。</span></div>';
   if(G.were.stage>0) html+='<div class="jrow"><b>狼人</b><span>寡婦艾蓮的丈夫。爪痕 '+G.were.marks+'/3，'+(G.were.outcome==='cured'?'已解除詛咒':(G.were.outcome==='killed'?'已死':'下落不明'))+'。</span></div>';
   body.innerHTML=html;
 }
@@ -2233,6 +2501,9 @@ function update(dt){
   // 自動存檔（每 20 秒）
   G.saveTimer=(G.saveTimer||0)+dt;
   if(G.saveTimer>20){ G.saveTimer=0; saveGame(); }
+
+  // 路牌解鎖（行近 170px）
+  for(const tp of TRAVEL){ if(dist(player,tp) < 170) unlockTravel(tp); }
   // 狼人變身動畫
   if(G.transform){
     G.transform.t+=dt;
@@ -2345,6 +2616,8 @@ function update(dt){
   else if(G.quest===6 && dist(player,shrinePos)<95) promptText='Ｅ　調查神龕';
   else if(G.were.stage===1 && props.some(p=>p.kind==='claw' && !p.taken && dist(player,p)<72)) promptText='Ｅ　調查爪痕';
   else if(G.were.stage===2 && !G.were.outcome && enemies.some(e=>e.type==='werewolf' && e.state!=='dead' && dist(player,e)<95)) promptText='Ｅ　與狼人對峙';
+  else if(dist(player,runePos)<105) promptText='Ｅ　調查石碑';
+  else if(TRAVEL.some(p=>dist(player,p)<100)) promptText='Ｅ　路牌（快速旅行）';
   else if(near) promptText='Ｅ　與'+near.name+'對話';
   if(promptText){ pr.textContent=promptText; pr.classList.add('on'); }
   else pr.classList.remove('on');
@@ -2401,7 +2674,7 @@ const cam={x:1280,y:1580};
 
 function updateEnemies(d){
   const alive=enemies.filter(e=>e.state!=='dead');
-  const boss=alive.find(e=>e.type==='tombwisp') || alive.find(e=>e.type==='bogcrone' && !e.side);
+  const boss=alive.find(e=>e.type==='tombwisp') || alive.find(e=>e.type==='wispking') || alive.find(e=>e.type==='bogcrone' && !e.side);
   if(boss&&boss.aggro&&!G.bossOn){ G.bossOn=true; document.getElementById('bossbar').classList.add('on'); }
 
   for(const e of enemies){
@@ -2507,6 +2780,25 @@ function updateEnemies(d){
         floatText(e.x,e.y-56,'撲擊','#d8a070');
       }
       if(e.hp<e.maxHp*0.5 && !e.howled){ e.howled=true; e.speed*=1.25; e.cdMax*=0.85; toast('狼人嚎叫','牠變得更快'); }
+    }
+
+    // 夜泣王：瞬移 + 半血召喚
+    if(e.type==='wispking'){
+      e.blinkCd=(e.blinkCd===undefined?3:e.blinkCd)-d;
+      if(e.blinkCd<=0 && dd>90){
+        e.blinkCd=rand(3.0,4.6);
+        const a=rand(0,TAU), rr=rand(130,240);
+        const nx=clamp(player.x+Math.cos(a)*rr,40,W-40), ny=clamp(player.y+Math.sin(a)*rr,40,H-40);
+        for(let i=0;i<20;i++) spawnParticle(e.x,e.y-16,rand(-70,70),rand(-90,10),rand(.3,.8),rand(1,3),'rgba(150,200,240,.6)',10,true);
+        e.x=nx; e.y=ny;
+        for(let i=0;i<20;i++) spawnParticle(nx,ny-16,rand(-70,70),rand(-90,10),rand(.3,.8),rand(1,3),'rgba(180,220,255,.7)',10,true);
+        floatText(nx,ny-76,'瞬移','#bcd8f0');
+      }
+      if(e.hp<e.maxHp*.6 && !e.summoned){
+        e.summoned=true;
+        for(let i=0;i<2;i++){ const w=spawnEnemy('wisp', e.x+rand(-80,80), e.y+rand(-60,60)); w.act1=false; w.aggro=true; enemies.push(w); }
+        toast('夜泣王召喚夜泣','小心包圍');
+      }
     }
 
     // 小怪
@@ -2650,8 +2942,8 @@ function draw(){
   ctx.save();
   ctx.translate(shakeX,shakeY);
 
-  // 地面
-  ctx.drawImage(ground, -cam.x, -cam.y);
+  // 地面（tile）
+  drawGround();
 
   // 點擊移動標記
   for(const c of G.clickFx){
@@ -2832,6 +3124,8 @@ function drawEntity(e,sx,sy){
     case 'fire': drawFire(e,sx,sy); break;
     case 'bones': drawBones(e,sx,sy); break;
     case 'signpost': drawSignpost(e,sx,sy); break;
+    case 'pondnest': drawPondNest(e,sx,sy); break;
+    case 'runestone': drawRunestone(e,sx,sy); break;
     case 'chest': drawChest(e,sx,sy); break;
     case 'grave': drawGrave(e,sx,sy); break;
     case 'loot': drawLoot(e,sx,sy); break;
@@ -2997,10 +3291,57 @@ function drawBones(b,sx,sy){
   ctx.restore();
 }
 function drawSignpost(s,sx,sy){
+  const tp=s.id?TRAVEL.find(v=>v.id===s.id):null;
+  const un=tp?G.travel.unlocked.includes(tp.id):false;
   ctx.save(); ctx.translate(sx,sy);
-  ctx.fillStyle='#2a2117'; ctx.fillRect(-2,-34,4,40);
-  ctx.fillStyle='#3b2f20'; ctx.beginPath(); ctx.moveTo(-26,-30); ctx.lineTo(20,-30); ctx.lineTo(26,-23); ctx.lineTo(20,-16); ctx.lineTo(-26,-16); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(200,170,110,.5)'; ctx.font='9px sans-serif'; ctx.fillText('磨坊', -18, -20);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,3,20,6,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2a2117'; ctx.fillRect(-2,-40,4,46);
+  ctx.fillStyle='#3b2f20'; ctx.beginPath(); ctx.moveTo(-26,-36); ctx.lineTo(20,-36); ctx.lineTo(26,-28); ctx.lineTo(20,-20); ctx.lineTo(-26,-20); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=un?'rgba(232,201,116,.9)':'rgba(180,160,120,.45)';
+  ctx.font='9px sans-serif'; ctx.fillText(tp?tp.name:'路牌', -20, -25);
+  if(un){
+    ctx.fillStyle='rgba(232,201,116,.9)'; ctx.beginPath(); ctx.arc(0,-44,2.4,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(0,-44,0,0,-44,16);
+    g.addColorStop(0,'rgba(232,201,116,.30)'); g.addColorStop(1,'rgba(232,201,116,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-44,16,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.restore();
+}
+function drawPondNest(n,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,8,n.r*1.05,n.r*.5,0,0,TAU); ctx.fill();
+  if(n.burnt){
+    ctx.fillStyle='#1d211c'; ctx.beginPath(); ctx.ellipse(0,2,n.r*.94,n.r*.58,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#2c312b';
+    for(let i=0;i<7;i++){ const a=i/7*TAU; ctx.beginPath(); ctx.arc(Math.cos(a)*n.r*.5,Math.sin(a)*n.r*.3,6,0,TAU); ctx.fill(); }
+    ctx.fillStyle='rgba(120,110,100,.35)';
+    for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(rand(-18,18),rand(-8,8),3,0,TAU); ctx.fill(); }
+    ctx.restore(); return;
+  }
+  ctx.fillStyle='#20301f'; ctx.beginPath(); ctx.ellipse(0,0,n.r,n.r*.62,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2c4527';
+  for(let i=0;i<9;i++){ const a=i/9*TAU; ctx.beginPath(); ctx.arc(Math.cos(a)*n.r*.55,Math.sin(a)*n.r*.3,7,0,TAU); ctx.fill(); }
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(0,-6,2,0,-6,n.r*.9);
+  g.addColorStop(0,'rgba(120,220,150,.45)'); g.addColorStop(1,'rgba(50,120,70,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,-4,n.r*.9,n.r*.55,0,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.restore();
+}
+function drawRunestone(s,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,6,16,5,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3a3f41';
+  ctx.beginPath(); ctx.moveTo(-12,6); ctx.lineTo(-10,-30); ctx.quadraticCurveTo(0,-42,10,-30); ctx.lineTo(12,6); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(150,200,230,.35)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,-26); ctx.lineTo(0,-8); ctx.moveTo(-6,-18); ctx.lineTo(6,-18); ctx.stroke();
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(0,-18,0,0,-18,20);
+  g.addColorStop(0,'rgba(140,190,230,.25)'); g.addColorStop(1,'rgba(140,190,230,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-18,20,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
   ctx.restore();
 }
 
@@ -3400,7 +3741,7 @@ function drawPlayerFx(sx,sy){
 
 function drawNPC(n,sx,sy){
   ctx.save(); ctx.translate(sx,sy);
-  const key = n.id==='elder' ? 'elder' : (n.id==='hunter' ? 'hunter' : (n.id==='smith' ? 'blacksmith' : (n.id==='widow' ? 'widow' : (n.id==='husband' ? 'husband' : 'fisherman'))));
+  const key = n.id==='elder' ? 'elder' : (n.id==='hunter' ? 'hunter' : (n.id==='smith' ? 'blacksmith' : (n.id==='widow' ? 'widow' : (n.id==='pondlady' ? 'widow' : (n.id==='husband' ? 'husband' : 'fisherman')))));
   if(!drawSprite(key, 0, 0, 70, Math.cos(n.facing)<0, 1, false, .90)){
     ctx.save(); ctx.rotate(n.facing+Math.PI/2);
     ctx.scale(1.15,1.15);
@@ -3446,9 +3787,10 @@ function drawEnemy(e,sx,sy){
   }
   ctx.save(); ctx.translate(sx,sy);
   const flash=e.flash>0;
-  const sizes={bogcrone:106, gnawer:54, bogdweller:50, wisp:60, tombwisp:126, werewolf:104};
-  const a0 = e.type==='wisp'?0.8:(e.type==='tombwisp'?0.92:1);
-  const drawn = ASSETS[e.type] && drawSprite(e.type, 0, 0, sizes[e.type]||52, Math.cos(e.facing)<0, a0, flash, .90);
+  const sizes={bogcrone:106, gnawer:54, bogdweller:50, wisp:60, tombwisp:126, werewolf:104, wispking:96};
+  const spriteKey = e.type==='wispking'?'wisp':e.type;
+  const a0 = e.type==='wisp'?0.8:(e.type==='tombwisp'?0.92:(e.type==='wispking'?0.9:1));
+  const drawn = ASSETS[spriteKey] && drawSprite(spriteKey, 0, 0, sizes[e.type]||52, Math.cos(e.facing)<0, a0, flash, .90);
   if(!drawn){
     ctx.save(); ctx.rotate(e.facing+Math.PI/2);
     const sc = e.type==='tombwisp'?1.9:(e.type==='werewolf'?1.5:(e.type==='bogcrone'?1.35:(e.type==='gnawer'?1.1:1.12)));
@@ -3496,6 +3838,17 @@ function drawEnemy(e,sx,sy){
       ctx.fillStyle=flash?'#f0d0c0':'#6e6555'; ctx.beginPath(); ctx.arc(0,-11,6.5,0,TAU); ctx.fill();
       ctx.fillStyle='#3a332b'; ctx.beginPath(); ctx.arc(0,-13,7,Math.PI,TAU); ctx.fill();
       ctx.fillStyle='#e0c060'; ctx.beginPath(); ctx.arc(-2.6,-11,1.6,0,TAU); ctx.arc(2.6,-11,1.6,0,TAU); ctx.fill();
+    } else if(e.type==='wispking'){
+      ctx.globalAlpha=.9;
+      ctx.fillStyle=flash?'#eaf8ff':'#7fa8c0';
+      ctx.beginPath(); ctx.ellipse(0,-2,15,26,0,0,TAU); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-15,6); ctx.lineTo(-22,36); ctx.lineTo(-8,22); ctx.lineTo(0,40); ctx.lineTo(8,22); ctx.lineTo(22,36); ctx.lineTo(15,6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#d8eefc'; ctx.beginPath(); ctx.arc(0,-24,9,0,TAU); ctx.fill();
+      ctx.fillStyle='#2a4a5a'; ctx.beginPath(); ctx.arc(0,-29,11,Math.PI,TAU); ctx.fill();
+      ctx.fillStyle='#bff0ff'; ctx.beginPath(); ctx.arc(-3.4,-24,2.2,0,TAU); ctx.arc(3.4,-24,2.2,0,TAU); ctx.fill();
+      ctx.fillStyle='#e8c974';
+      ctx.beginPath(); ctx.moveTo(-9,-40); ctx.lineTo(-11,-50); ctx.lineTo(-4,-44); ctx.lineTo(0,-52); ctx.lineTo(4,-44); ctx.lineTo(11,-50); ctx.lineTo(9,-40); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha=1;
     } else if(e.type==='wisp'){
       ctx.globalAlpha=.82;
       ctx.fillStyle=flash?'#eaf8ff':'#8fb8cc';
@@ -3515,6 +3868,10 @@ function drawEnemy(e,sx,sy){
       ctx.beginPath(); ctx.moveTo(-9,2); ctx.lineTo(-15,10); ctx.moveTo(9,2); ctx.lineTo(15,10); ctx.stroke();
     }
     ctx.restore();
+  }
+  if(e.type==='wispking' && e.state!=='dead'){
+    ctx.fillStyle='#e8c974';
+    ctx.beginPath(); ctx.moveTo(-10,-76); ctx.lineTo(-12,-86); ctx.lineTo(-5,-80); ctx.lineTo(0,-88); ctx.lineTo(5,-80); ctx.lineTo(12,-86); ctx.lineTo(10,-76); ctx.closePath(); ctx.fill();
   }
   drawEnemyUI(e);
   ctx.restore();
@@ -3587,11 +3944,11 @@ function updateHUD(){
   }
   const boss=document.getElementById('bossbar');
   if(G.bossOn){
-    const b=enemies.find(e=>e.type==='tombwisp'&&e.state!=='dead') || enemies.find(e=>e.type==='bogcrone'&&!e.side&&e.state!=='dead');
+    const b=enemies.find(e=>e.type==='tombwisp'&&e.state!=='dead') || enemies.find(e=>e.type==='wispking'&&e.state!=='dead') || enemies.find(e=>e.type==='bogcrone'&&!e.side&&e.state!=='dead');
     if(b){
       document.getElementById('bossFill').style.width=Math.max(0,b.hp/b.maxHp*100)+'%';
       const bn=boss.querySelector('.bname');
-      if(bn) bn.textContent = b.type==='tombwisp'?'墓　中　妖　靈':'水　鬼　婆';
+      if(bn) bn.textContent = b.type==='tombwisp'?'墓　中　妖　靈':(b.type==='wispking'?'夜　泣　王':'水　鬼　婆');
     }
   }
 }
@@ -3604,7 +3961,7 @@ let lastPlaying=null;
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000)||.016;
   last=now;
-  const active=(G.mode==='play'||G.mode==='dialog'||G.mode==='inventory'||G.mode==='journal'||G.mode==='smith');
+  const active=(G.mode==='play'||G.mode==='dialog'||G.mode==='inventory'||G.mode==='journal'||G.mode==='smith'||G.mode==='travel');
   if(active!==lastPlaying){ document.body.classList.toggle('playing',active); lastPlaying=active; }
   if(active && !G.demoFreeze) update(dt);
   else {
@@ -3627,7 +3984,15 @@ function runSelfTest(){
   const ok=(name,cond,extra)=>{ rows.push({name,cond,extra}); cond?pass++:fail++; };
 
   resetGame();
+  G.mode='play';
   ok('地圖 4×', W===5200 && H===3400, W+'x'+H);
+  ok('tile 地面', typeof getTile==='function' && getTile(0,0).width===512 && getTile(0,0)===getTile(0,0), 'cache='+tileCache.size);
+  player.x=TRAVEL.find(t=>t.id==='pond').x; player.y=TRAVEL.find(t=>t.id==='pond').y;
+  update(0.05);
+  ok('發現傳送點', G.travel.unlocked.includes('pond'), 'unlocked='+G.travel.unlocked.length);
+  ok('快速旅行', fastTravel('pond') && Math.abs(player.x-1180)<2, 'x='+Math.round(player.x));
+  saveGame(); G.travel.unlocked=['village']; loadGame();
+  ok('傳送點存檔', G.travel.unlocked.includes('pond'), 'unlocked='+G.travel.unlocked.join(','));
   {const n=npcs.find(v=>v.id==='elder'); player.x=n.x; player.y=n.y+20;}
   elderDialog();
   ok('對話開啟', G.mode==='dialog');
@@ -3767,6 +4132,33 @@ function runSelfTest(){
   ok('狼人變身動畫', transActive && G.were.outcome==='cured' && npcs.some(n=>n.id==='husband'),
     'outcome='+G.were.outcome);
 
+  // 支線：池塘沼屍
+  {const n=npcs.find(v=>v.id==='pondlady'); player.x=n.x; player.y=n.y+20;}
+  pondLadyDialog();
+  chooseOption(0);
+  ok('接池塘任務', G.pond.stage===1 && enemies.filter(e=>e.pond).length>=3, 'stage='+G.pond.stage);
+  enemies.filter(e=>e.pond).forEach(e=>hitEnemy(e, 999, 0, 0));
+  ok('清池塘沼屍', G.pond.killed>=3, 'killed='+G.pond.killed);
+  player.x=pondNestPos.x; player.y=pondNestPos.y+80; player.facing=-Math.PI/2;
+  player.stam=100; signs.igni.cd=0;
+  castSign('igni');
+  ok('燒池塘巢穴', G.pond.stage===2 && G.pond.nest, 'stage='+G.pond.stage);
+  {const n=npcs.find(v=>v.id==='pondlady'); player.x=n.x; player.y=n.y+20;}
+  const oilBefore=player.inv.fishOil;
+  pondLadyDialog();
+  chooseOption(0);
+  ok('池塘任務回報', G.pond.stage===3 && player.inv.fishOil===oilBefore+2, 'stage='+G.pond.stage);
+
+  // 支線：廢塔夜泣王
+  player.x=runePos.x; player.y=runePos.y+80;
+  runeDialog();
+  chooseOption(0);
+  ok('喚醒夜泣王', G.tower.stage===1 && enemies.some(e=>e.type==='wispking'), 'stage='+G.tower.stage);
+  const wk=enemies.find(e=>e.type==='wispking');
+  const goldWk=G.gold;
+  if(wk) hitEnemy(wk, 999, 0, 0);
+  ok('擊敗夜泣王', G.tower.stage===2 && G.gold===goldWk+250, 'stage='+G.tower.stage+' gold='+G.gold);
+
   // Boss 音樂層 / 8 向動畫
   ok('Boss 音樂層', typeof AudioFX.setBoss==='function');
   ok('8向動畫', typeof dirFrame==='function' && typeof player.moving==='boolean');
@@ -3886,6 +4278,9 @@ function startGame(fresh){
   }
   if(q.get('dialog')==='elder'){ setTimeout(elderDialog, 350); }
   if(q.get('dialog')==='widow'){ setTimeout(widowDialog, 350); }
+  if(q.get('dialog')==='pondlady'){ setTimeout(pondLadyDialog, 350); }
+  if(q.get('show')==='travel'){ G.travel.unlocked=TRAVEL.map(p=>p.id); player.x=1440; player.y=1480; setTimeout(openTravel, 350); }
+  if(q.get('pose')==='wispking'){ G.tower.stage=1; spawnWraithKing(); player.x=4700; player.y=1060; G.demoFreeze=true; }
   if(q.get('dialog')==='werewolf'){ G.were.stage=2; spawnWerewolf(); player.x=wereLair.x; player.y=wereLair.y+70; setTimeout(werewolfDialog, 350); }
   if(q.get('pose')==='were'){ acceptWere(); props.filter(p=>p.kind==='claw').forEach(c=>{ c.taken=true; }); G.were.marks=3; G.were.stage=2; spawnWerewolf(); player.x=wereLair.x-30; player.y=wereLair.y+95; player.facing=-1.4; G.demoFreeze=true; }
   if(q.get('show')==='inventory'){
@@ -3982,6 +4377,19 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
