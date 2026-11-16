@@ -241,6 +241,16 @@
   .bindBtn:hover{background:rgba(200,162,74,.22)}
   .bcap{color:#8f8468;font-size:11px}
   .bindFoot{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+  #rumblePanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:640px;max-height:80vh;
+    overflow-y:auto;padding:20px 24px;z-index:8;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
+    border:1px solid rgba(200,162,74,.5);box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
+  #rumblePanel.on{display:block}
+  #rumblePanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 12px;font-weight:400}
+  .rrow{display:grid;grid-template-columns:.8fr 2fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+  .rhead{font-size:10px;letter-spacing:2px;color:#8f8468;padding:0 0 6px;border-bottom:1px solid rgba(200,162,74,.25)}
+  .rpat{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;font-family:Consolas,monospace;
+    font-size:12px;padding:4px 8px;width:100%}
+  .setsel{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;padding:4px 8px;font-size:12px}
   #padhud{position:absolute;left:0;bottom:96px;display:none;flex-wrap:wrap;gap:10px;align-items:center;
     padding:6px 10px;background:rgba(5,8,12,.72);border:1px solid rgba(200,162,74,.25);border-radius:4px;
     font-size:11px;color:#cfc7b4;pointer-events:none}
@@ -423,6 +433,9 @@
       <div class="setRow"><span>每 20 秒自動存檔</span><input id="setAuto" type="checkbox" checked></div>
       <div class="setRow"><span>震動強度</span><input id="setRumble" type="range" min="0" max="100" value="70"></div>
       <div class="setRow"><span>手掣</span><b id="padStatus">未連接</b></div>
+      <div class="setRow"><span>手掣圖示主題</span><select id="setPadTheme" class="setsel">
+        <option value="auto">自動</option><option value="xbox">Xbox</option><option value="ps">PlayStation</option></select></div>
+      <div class="setRow"><span>震動模式</span><button id="btnRumble" class="setBtn">編輯…</button></div>
       <div class="setRow"><span>按鍵／手掣重映射</span><button id="btnControls" class="setBtn">設定…</button></div>
       <div class="invHint">ESC 關閉 · 設定會記住</div>
     </div>
@@ -435,6 +448,17 @@
         <button id="bindClose" class="bindBtn">關閉</button>
       </div>
       <div class="invHint">點「鍵盤」再按键；點「手掣」再按手掣按鈕。ESC 關閉。</div>
+    </div>
+    <div id="rumblePanel" class="panel">
+      <h3>震動模式 · <span id="rumbleSlot">存檔槽 1</span></h3>
+      <div class="setRow"><span>啟用震動</span><input id="rumbleEnabled" type="checkbox" checked></div>
+      <div class="setRow"><span>強度</span><input id="rumbleIntensity" type="range" min="0" max="100" value="70"></div>
+      <div id="rumbleList"></div>
+      <div class="bindFoot">
+        <button id="rumbleReset" class="bindBtn">重設</button>
+        <button id="rumbleClose" class="bindBtn">關閉</button>
+      </div>
+      <div class="invHint">格式：毫秒:強:弱，逗號分隔多段（例：70:0.9:0.5,60:0.35:0.2）；每段 20–1200ms、最多 8 段。</div>
     </div>
   <div id="dialog" class="hidden">
     <div class="dpanel">
@@ -473,7 +497,7 @@
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.14 · 82 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.15 · 89 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -1164,7 +1188,19 @@ try{ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, parseInt(localStorage.getItem(S
 
 /* ---- v0.10：設定 ---- */
 const SETTINGS_KEY = 'whitewolf_settings';
-const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true, rumble:0.7 };
+const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true, rumble:0.7, padTheme:'auto' };
+const RUMBLE_KEY = 'whitewolf_rumble';
+const DEFAULT_RUMBLE = {
+  enabled:true, intensity:0.7,
+  patterns:{
+    hurt:'70:0.9:0.5,60:0.35:0.2',
+    hit:'45:0.35:0.15',
+    heavy:'90:0.8:0.4,50:0.25:0.15',
+    boss:'180:0.95:0.7,120:0.4:0.25,200:0.9:0.6'
+  }
+};
+function loadRumbleStore(){ try{ return JSON.parse(localStorage.getItem(RUMBLE_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function saveRumbleStore(o){ try{ localStorage.setItem(RUMBLE_KEY, JSON.stringify(o)); }catch(e){} }
 const BINDINGS_KEY = 'whitewolf_bindings';
 function loadBindingsStore(){ try{ return JSON.parse(localStorage.getItem(BINDINGS_KEY)||'{}')||{}; }catch(e){ return {}; } }
 function saveBindingsStore(o){ try{ localStorage.setItem(BINDINGS_KEY, JSON.stringify(o)); }catch(e){} }
@@ -1650,7 +1686,12 @@ function hitEnemy(e, dmg, kb, ang){
   floatText(e.x, e.y-e.r*1.7, Math.round(dmg), '#f3d9a0');
   G.hitStop=.045; G.shake=Math.max(G.shake,4);
   AudioFX.hit();
-  if(typeof rumble==='function') rumble(0.35, 0.18, 70);
+  if(typeof playRumblePattern==='function'){
+    if(player.atk && player.atk.kind==='strong'){
+      const now=performance.now();
+      if(now-(hitEnemy._lastHeavy||0)>320){ hitEnemy._lastHeavy=now; playRumblePattern('heavy'); }
+    } else playRumblePattern('hit');
+  }
   if(e.hp<=0) killEnemy(e);
 }
 function killEnemy(e){
@@ -1749,7 +1790,7 @@ function hurtPlayer(dmg, fromX, fromY){
   player.hurtFlash=.6;
   G.shake=Math.max(G.shake,9);
   AudioFX.hurt();
-  if(typeof rumble==='function') rumble(0.85, 0.45, 150);
+  if(typeof playRumblePattern==='function') playRumblePattern('hurt');
   const a=Math.atan2(player.y-fromY, player.x-fromX);
   player.x+=Math.cos(a)*16; player.y+=Math.sin(a)*16;
   const h=document.getElementById('hurt'); h.style.opacity=.9; setTimeout(()=>h.style.opacity=0,140);
@@ -2019,7 +2060,7 @@ function spawnMatriarch(){
   const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='墓　中　妖　靈';
   updateHUD();
   G.shake=20;
-  if(typeof rumble==='function') rumble(0.95, 0.7, 380);
+  if(typeof playRumblePattern==='function') playRumblePattern('boss');
   for(let i=0;i<50;i++) spawnParticle(shrinePos.x+rand(-40,40), shrinePos.y+rand(-20,20), rand(-120,120), rand(-220,-40), rand(.6,1.6), rand(2,6), 'rgba(140,190,230,.8)', 40, true);
   toast('墓中夜泣','擊敗它，結束霧沼的夜鳴');
   updateQuestUI(); saveGame();
@@ -2307,7 +2348,7 @@ function spawnWraithKing(){
   G.bossOn=true;
   document.getElementById('bossbar').classList.add('on');
   const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='夜　泣　王';
-  if(typeof rumble==='function') rumble(0.95, 0.7, 380);
+  if(typeof playRumblePattern==='function') playRumblePattern('boss');
   toast('夜泣王甦醒','擊敗牠');
   updateQuestUI(); saveGame();
 }
@@ -2630,6 +2671,7 @@ function openSettings(){
   if(d) d.checked = !!SETTINGS.dirs;
   if(a) a.checked = SETTINGS.autosave !== false;
   if(r) r.value = Math.round((SETTINGS.rumble==null?0.7:SETTINGS.rumble)*100);
+  const pt=document.getElementById('setPadTheme'); if(pt) pt.value=SETTINGS.padTheme||'auto';
   document.getElementById('settingsPanel').classList.add('on');
   if(typeof updatePadUI==='function') updatePadUI();
 }
@@ -2835,11 +2877,15 @@ function update(dt){
   if(typeof Pad!=='undefined' && Pad.connected && Pad.mag>0.12){
     mx += Pad.mx*Pad.mag; my += Pad.my*Pad.mag; player.moveTo=null;
   }
+  if(typeof SteamInput!=='undefined' && SteamInput.available && Pad.steamMag>0.12){
+    mx += Pad.steamX*Pad.steamMag; my += Pad.steamY*Pad.steamMag; player.moveTo=null;
+  }
   const len=Math.hypot(mx,my);
   if(len>0){ mx/=len; my/=len; player.moveTo=null; }
   // v0.14：類比慢行（搖桿輕推 = 慢行）
   let analogMag=0;
   if(typeof Pad!=='undefined' && Pad.connected && Pad.mag>0.12) analogMag=Math.max(analogMag,Pad.mag);
+  if(typeof SteamInput!=='undefined' && SteamInput.available && Pad.steamMag>0.12) analogMag=Math.max(analogMag,Pad.steamMag);
   if(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.12) analogMag=Math.max(analogMag,Touch.mag);
 
   let moveAng=null;
@@ -4276,6 +4322,7 @@ function loop(now){
   const dt=Math.min(.05,(now-last)/1000)||.016;
   last=now;
   if(typeof pollGamepad==='function') pollGamepad();
+  if(typeof steamInputPoll==='function') steamInputPoll();
   const active=(G.mode==='play'||G.mode==='dialog'||G.mode==='inventory'||G.mode==='journal'||G.mode==='smith'||G.mode==='travel');
   if(active!==lastPlaying){ document.body.classList.toggle('playing',active); lastPlaying=active; }
   if(active && !G.demoFreeze) update(dt);
@@ -4372,6 +4419,8 @@ function touchAct(act){
 /* ---- part-14c.js · 16. 手掣（Gamepad API）＋按鍵重映射 UI（v0.13） ---- */
 const Pad={connected:false,id:'',index:-1,mx:0,my:0,mag:0,buttons:[],gp:null};
 const PAD_DEAD=0.28;
+let RUMBLE_OPEN=false;
+const SteamInput={available:false};
 const PAD_NAMES=['A','B','X','Y','LB','RB','LT','RT','Back','Start','L3','R3','↑','↓','←','→'];
 
 function keyLabel(code){
@@ -4381,7 +4430,7 @@ function keyLabel(code){
   const map={Space:'Space',ShiftLeft:'Shift',ShiftRight:'Shift',Escape:'Esc',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Enter:'Enter',Tab:'Tab',ControlLeft:'Ctrl',AltLeft:'Alt'};
   return map[code]||code;
 }
-function padLabel(i){ return PAD_NAMES[i]||('B'+i); }
+function padLabel(i){ return (typeof padGlyph==='function')?padGlyph(i):(PAD_NAMES[i]||('B'+i)); }
 
 const GLYPHS={
   xbox:{0:'Ⓐ',1:'Ⓑ',2:'Ⓧ',3:'Ⓨ',4:'LB',5:'RB',6:'LT',7:'RT',8:'▣',9:'☰',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'},
@@ -4389,6 +4438,9 @@ const GLYPHS={
   generic:{0:'A',1:'B',2:'X',3:'Y',4:'LB',5:'RB',6:'LT',7:'RT',8:'Back',9:'Start',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'}
 };
 function padType(id){
+  if(id==null && typeof SETTINGS!=='undefined' && SETTINGS.padTheme && SETTINGS.padTheme!=='auto'){
+    return SETTINGS.padTheme;
+  }
   const t=String(id==null?Pad.id:id).toLowerCase();
   if(/xbox|xinput|045e|microsoft/.test(t)) return 'xbox';
   if(/playstation|dualshock|dualsense|sony|054c|ps[345]/.test(t)) return 'ps';
@@ -4406,17 +4458,45 @@ function renderPadHUD(){
     [PADBIND_BY_ACTION.inventory,'行囊'],[PADBIND_BY_ACTION.journal,'日誌']
   ].filter(x=>x[0]!=null);
   el.style.display='flex';
-  el.innerHTML='<span class="padtag">'+(t==='ps'?'PS':(t==='xbox'?'Xbox':'PAD'))+'</span>'+
+  el.innerHTML='<span class="padtag">'+(SteamInput.available?'STEAM':(t==='ps'?'PS':(t==='xbox'?'Xbox':'PAD')))+'</span>'+
     items.map(x=>'<span class="paditem"><b>'+padGlyph(x[0])+'</b>'+x[1]+'</span>').join('');
 }
-function rumble(strong, weak, ms){
-  const amp=(typeof SETTINGS!=='undefined'&&SETTINGS.rumble!=null)?SETTINGS.rumble:0.7;
-  if(amp<=0) return false;
+function getRumbleConfig(slot){
+  const s = slot || (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
+  const store = (typeof loadRumbleStore==='function')?loadRumbleStore():{};
+  const cfg = Object.assign({}, DEFAULT_RUMBLE, store[s]||{});
+  cfg.patterns = Object.assign({}, DEFAULT_RUMBLE.patterns, cfg.patterns||{});
+  return cfg;
+}
+function saveRumbleConfig(cfg){
+  const s = (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
+  if(typeof saveRumbleStore==='function'){
+    const store = loadRumbleStore(); store[s]=cfg; saveRumbleStore(store);
+  }
+  if(typeof SETTINGS!=='undefined'){ SETTINGS.rumble=cfg.intensity; if(typeof saveSettings==='function') saveSettings(); }
+}
+function setRumbleValue(k,v){ const cfg=getRumbleConfig(); cfg[k]=v; saveRumbleConfig(cfg); }
+function parseRumblePattern(str){
+  if(str==null || String(str).trim()==='') return [];
+  const out=[];
+  for(const part of String(str).split(',')){
+    const p=part.trim(); if(!p) continue;
+    const bits=p.split(':').map(Number);
+    if(bits.length!==3 || bits.some(n=>!isFinite(n)||n<0)) return null;
+    out.push({dur:Math.max(20,Math.min(1200,bits[0])), strong:Math.min(1,bits[1]), weak:Math.min(1,bits[2])});
+    if(out.length>8) return null;
+  }
+  return out.length?out:[];
+}
+function findPadForRumble(){
   let gp=Pad.gp;
   if(!gp){ try{ for(const p of navigator.getGamepads()){ if(p&&p.connected){ gp=p; break; } } }catch(e){} }
+  return gp;
+}
+function pulseRumble(gp, strong, weak, ms){
   if(!gp) return false;
-  const s=Math.max(0,Math.min(1,strong*amp)), w=Math.max(0,Math.min(1,weak*amp));
-  const dur=Math.max(20, ms||120);
+  const s=Math.max(0,Math.min(1,strong)), w=Math.max(0,Math.min(1,weak));
+  const dur=Math.max(20, Math.min(1500, ms||120));
   try{
     if(gp.vibrationActuator && typeof gp.vibrationActuator.playEffect==='function'){
       gp.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:dur,strongMagnitude:s,weakMagnitude:w});
@@ -4427,6 +4507,79 @@ function rumble(strong, weak, ms){
     }
   }catch(e){}
   return false;
+}
+function playRumblePattern(name, override){
+  const cfg=getRumbleConfig();
+  if(!cfg.enabled || !(cfg.intensity>0)) return false;
+  const raw = (override!=null?override:cfg.patterns[name]);
+  const pat = parseRumblePattern(raw||'');
+  if(!pat || !pat.length) return false;
+  const gp = findPadForRumble();
+  if(!gp) return false;
+  const amp = cfg.intensity;
+  let delay = 0;
+  for(const step of pat){
+    const go = ()=>pulseRumble(gp, step.strong*amp, step.weak*amp, step.dur);
+    if(delay<=0) go(); else setTimeout(go, delay);
+    delay += step.dur;
+  }
+  return true;
+}
+function rumble(strong, weak, ms){
+  const cfg=getRumbleConfig();
+  if(!cfg.enabled || !(cfg.intensity>0)) return false;
+  return pulseRumble(findPadForRumble(), strong*cfg.intensity, weak*cfg.intensity, ms);
+}
+
+function openRumblePanel(){
+  RUMBLE_OPEN=true;
+  const p=document.getElementById('rumblePanel'); if(p) p.classList.add('on');
+  renderRumblePanel();
+}
+function closeRumblePanel(){
+  RUMBLE_OPEN=false;
+  const p=document.getElementById('rumblePanel'); if(p) p.classList.remove('on');
+}
+function renderRumblePanel(){
+  const list=document.getElementById('rumbleList'); if(!list) return;
+  const cfg=getRumbleConfig();
+  const labels={hurt:'受傷',hit:'命中',heavy:'重擊',boss:'Boss'};
+  list.innerHTML='<div class="bindRow rhead"><span>事件</span><span>Pattern（毫秒:強:弱）</span><span></span></div>'+
+    Object.keys(labels).map(k=>'<div class="rrow"><span class="bn">'+labels[k]+'</span>'+
+      '<input class="rpat" data-rk="'+k+'" value="'+String(cfg.patterns[k]||'').replace(/"/g,'&quot;')+'">'+
+      '<button class="bindBtn" data-rprev="'+k+'">試</button></div>').join('');
+  const en=document.getElementById('rumbleEnabled'); if(en) en.checked=cfg.enabled!==false;
+  const amp=document.getElementById('rumbleIntensity'); if(amp) amp.value=Math.round((cfg.intensity==null?0.7:cfg.intensity)*100);
+  const slotEl=document.getElementById('rumbleSlot'); if(slotEl) slotEl.textContent='存檔槽 '+(typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
+  list.querySelectorAll('[data-rprev]').forEach(b=>b.addEventListener('click',()=>playRumblePattern(b.dataset.rprev)));
+  list.querySelectorAll('[data-rk]').forEach(inp=>inp.addEventListener('change',()=>{
+    const cfg2=getRumbleConfig();
+    cfg2.patterns[inp.dataset.rk]=inp.value.trim();
+    saveRumbleConfig(cfg2);
+  }));
+}
+function resetRumblePatterns(){
+  const cfg=getRumbleConfig();
+  cfg.patterns=Object.assign({},DEFAULT_RUMBLE.patterns);
+  cfg.enabled=true; cfg.intensity=0.7;
+  saveRumbleConfig(cfg);
+  renderRumblePanel();
+}
+function steamInputPoll(){
+  const api=window.steamInput;
+  if(!api || typeof api.poll!=='function'){ SteamInput.available=false; return; }
+  let st=null;
+  try{ st=api.poll(); }catch(e){ return; }
+  if(!st){ return; }
+  SteamInput.available=true;
+  if(Array.isArray(st.actions)){
+    for(const a of st.actions){ if(typeof inputAction==='function') inputAction(a); }
+  }
+  if(st.axes){
+    const ax=+st.axes.x||0, ay=+st.axes.y||0, mag=Math.min(1,Math.hypot(ax,ay));
+    if(mag>0.12){ Pad.steamX=ax/mag; Pad.steamY=ay/mag; Pad.steamMag=mag; }
+    else { Pad.steamX=0; Pad.steamY=0; Pad.steamMag=0; }
+  }
 }
 
 function updatePadUI(){
@@ -4572,10 +4725,17 @@ function initSettingsUI(){
   wire('setMusic','input',()=>{ SETTINGS.music=(+document.getElementById('setMusic').value)/100; applySettings(); saveSettings(); });
   wire('setDirs','change',()=>{ SETTINGS.dirs=document.getElementById('setDirs').checked; applySettings(); saveSettings(); });
   wire('setAuto','change',()=>{ SETTINGS.autosave=document.getElementById('setAuto').checked; saveSettings(); });
-  wire('setRumble','input',()=>{ SETTINGS.rumble=(+document.getElementById('setRumble').value)/100; saveSettings(); });
+  wire('setRumble','input',()=>{ setRumbleValue('intensity', (+document.getElementById('setRumble').value)/100); });
+  wire('setPadTheme','change',()=>{ SETTINGS.padTheme=document.getElementById('setPadTheme').value||'auto'; saveSettings(); updatePadUI(); renderControls(); });
+  const rb=document.getElementById('btnRumble'); if(rb) rb.addEventListener('click',openRumblePanel);
 }
 function initInputUI(){
   initSettingsUI();
+  const rbBtn=document.getElementById('btnRumble'); if(rbBtn) rbBtn.addEventListener('click',openRumblePanel);
+  const rReset=document.getElementById('rumbleReset'); if(rReset) rReset.addEventListener('click',()=>{ resetRumblePatterns(); toast('震動模式已重設'); });
+  const rClose=document.getElementById('rumbleClose'); if(rClose) rClose.addEventListener('click',closeRumblePanel);
+  const rEn=document.getElementById('rumbleEnabled'); if(rEn) rEn.addEventListener('change',()=>{ setRumbleValue('enabled', rEn.checked); renderRumblePanel(); });
+  const rAmp=document.getElementById('rumbleIntensity'); if(rAmp) rAmp.addEventListener('input',()=>{ setRumbleValue('intensity', (+rAmp.value)/100); });
   const btn=document.getElementById('btnControls');
   if(btn) btn.addEventListener('click',openControls);
   const reset=document.getElementById('bindReset');
@@ -4703,15 +4863,15 @@ function runSelfTest(){
   mockPad.vibrationActuator={ playEffect:(t,o)=>{ mockPad._rumble=o; mockPad._rumbleType=t; return Promise.resolve('ok'); } };
   mockPad.hapticActuators=null;
   Pad.gp=mockPad;
-  SETTINGS.rumble=0.5;
+  { const cfg=getRumbleConfig(); cfg.intensity=0.5; cfg.enabled=true; saveRumbleConfig(cfg); }
   const rumbleOk=rumble(1, 0.5, 200);
   ok('手掣震動', rumbleOk && mockPad._rumble && mockPad._rumble.duration===200 &&
     Math.abs(mockPad._rumble.strongMagnitude-0.5)<0.01 && Math.abs(mockPad._rumble.weakMagnitude-0.25)<0.01,
     JSON.stringify(mockPad._rumble||{}));
-  SETTINGS.rumble=0;
+  { const cfg=getRumbleConfig(); cfg.enabled=false; saveRumbleConfig(cfg); }
   const rumbleOff=rumble(1,1,100);
   ok('震動可關', rumbleOff===false, 'ok='+rumbleOff);
-  SETTINGS.rumble=0.7;
+  { const cfg=getRumbleConfig(); cfg.enabled=true; cfg.intensity=0.7; saveRumbleConfig(cfg); }
   mockPad.vibrationActuator=null;
   ok('震動無支援', rumble(0.5,0.5,80)===false);
   mockPad.id='Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)'; Pad.id=mockPad.id;
@@ -4743,6 +4903,44 @@ function runSelfTest(){
   ok('每槽獨立按鍵', slot2Default && slot3Default && slot1Back && slot2Back,
     's1='+BIND_BY_ACTION.interact+' slot2ok='+slot2Back);
   setSlot(1); resetBindings(); setSlot(2); resetBindings(); setSlot(3); resetBindings(); setSlot(1); loadBindings();
+
+  // v0.15: pattern / theme / per-slot rumble / Steam Input
+  const pat=parseRumblePattern('70:0.9:0.5,60:0.35:0.2');
+  const patBad=parseRumblePattern('abc')===null && parseRumblePattern('1:2')===null;
+  ok('震動 pattern 解析', !!pat && pat.length===2 && pat[0].dur===70 && Math.abs(pat[0].strong-0.9)<0.01 && patBad,
+    pat?JSON.stringify(pat[0]):'null');
+  mockPad.vibrationActuator={ playEffect:(t,o)=>{ mockPad._pat=o; return Promise.resolve('ok'); } };
+  Pad.gp=mockPad;
+  { const cfg=getRumbleConfig(); cfg.enabled=true; cfg.intensity=0.5; cfg.patterns.hurt='30:1:0.4'; saveRumbleConfig(cfg); }
+  const patPlay=playRumblePattern('hurt');
+  ok('震動 pattern 播放', patPlay===true && mockPad._pat && mockPad._pat.duration===30 && Math.abs(mockPad._pat.strongMagnitude-0.5)<0.01,
+    JSON.stringify(mockPad._pat||{}));
+  openRumblePanel();
+  const rpEl=document.getElementById('rumblePanel');
+  const rpOk=!!rpEl && rpEl.classList.contains('on') && document.querySelectorAll('#rumbleList .rrow').length>=4;
+  closeRumblePanel();
+  ok('震動編輯面板', rpOk, rpEl?rpEl.className:'null');
+  SETTINGS.padTheme='ps'; const thPs=padType()==='ps' && padGlyph(0)==='✕';
+  SETTINGS.padTheme='xbox'; const thXb=padType()==='xbox' && padGlyph(0)==='Ⓐ';
+  SETTINGS.padTheme='auto'; Pad.id='Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
+  const thAuto=padType()==='xbox';
+  ok('圖示主題切換', thPs && thXb && thAuto, 'ps='+thPs+' xbox='+thXb+' auto='+thAuto);
+  setSlot(1); { const c=getRumbleConfig(); c.intensity=0.3; saveRumbleConfig(c); }
+  setSlot(2); { const c=getRumbleConfig(); c.intensity=0.9; saveRumbleConfig(c); }
+  setSlot(1); const slotAmp=getRumbleConfig().intensity;
+  setSlot(2); const slotAmp2=getRumbleConfig().intensity;
+  ok('每槽震動設定', Math.abs(slotAmp-0.3)<0.001 && Math.abs(slotAmp2-0.9)<0.001, 's1='+slotAmp+' s2='+slotAmp2);
+  { const c=getRumbleConfig(); c.enabled=false; saveRumbleConfig(c); }
+  ok('每槽震動可關', playRumblePattern('hurt')===false);
+  { const c=getRumbleConfig(); c.enabled=true; c.intensity=0.7; saveRumbleConfig(c); }
+  G.mode='play'; player.atk=null; player.atkCd=0; player.stam=100;
+  window.steamInput={ poll:()=>({actions:['attack'], axes:{x:1,y:0}}) };
+  steamInputPoll();
+  const steamOk=SteamInput.available===true && !!player.atk && Pad.steamMag>0.5;
+  window.steamInput=null; steamInputPoll();
+  const steamOff=SteamInput.available===false;
+  ok('Steam Input 橋接', steamOk && steamOff, 'on='+steamOk+' off='+steamOff);
+  setSlot(1); loadBindings();
   SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings(); loadBindings();
 
   // 戰鬥
@@ -5032,6 +5230,7 @@ function startGame(fresh){
 if(q.get('show')==='save') setTimeout(()=>{ try{ renderSavePanel(); document.getElementById('savePanel').classList.add('on'); }catch(e){} }, 200);
 if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){} }, 200);
   if(q.get('show')==='controls') setTimeout(()=>{ try{ openControls(); }catch(e){} }, 200);
+  if(q.get('show')==='rumble') setTimeout(()=>{ try{ openRumblePanel(); }catch(e){} }, 200);
   if(q.get('pose')==='side'){
     acceptSide();
     player.x=2230; player.y=1290; player.facing=1.0;
