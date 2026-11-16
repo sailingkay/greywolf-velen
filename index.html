@@ -200,6 +200,49 @@
   .travelBtn:hover{background:rgba(200,162,74,.22)}
   .travelBtn.off{opacity:.35;cursor:default}
   .travelDemo{color:#8f8468;font-size:11px;margin-top:14px}
+  /* ---------- v0.10: 存檔槽 / 設定 ---------- */
+  #savePanel,#settingsPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:560px;padding:24px 30px 18px;z-index:9;display:none;
+    background:linear-gradient(180deg,rgba(14,18,24,.97),rgba(8,10,14,.97));
+    border:1px solid rgba(200,162,74,.45);box-shadow:0 18px 60px rgba(0,0,0,.6)}
+  #savePanel.on,#settingsPanel.on{display:block}
+  .slotRow{display:flex;align-items:center;gap:12px;padding:10px 12px;margin:0 0 8px;
+    border:1px solid rgba(200,162,74,.22);background:rgba(255,255,255,.02)}
+  .slotRow.cur{border-color:rgba(200,162,74,.65);background:rgba(200,162,74,.07)}
+  .slotNo{font-family:Georgia,serif;font-size:18px;color:#e8c974;width:26px;text-align:center}
+  .slotMeta{flex:1;font-size:12px;line-height:1.65;color:#cfc7b4}
+  .slotMeta b{color:#efe6cf;font-weight:500}
+  .slotMeta .empty{color:#6c6656}
+  .slotBtns{display:flex;gap:6px}
+  .sbtn{font:inherit;font-size:11px;padding:5px 10px;background:rgba(200,162,74,.12);
+    border:1px solid rgba(200,162,74,.4);color:#e8dcc0;cursor:pointer}
+  .sbtn:hover{background:rgba(200,162,74,.25)}
+  .sbtn:disabled{opacity:.32;cursor:default}
+  .setRow{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;
+    border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px;color:#d8d0bd}
+  .setRow input[type=range]{width:190px}
+
+  /* ---------- v0.12: 觸控 ---------- */
+  .touchui{position:absolute;inset:0;display:none;z-index:6;pointer-events:none}
+  body.touchmode .touchui{display:block}
+  body.touchmode #actions,body.touchmode #hint,body.touchmode #signs{display:none}
+  body.touchmode #stick{bottom:40px}
+  body.touchmode .tbtns{bottom:34px}
+  #stick{position:absolute;left:56px;bottom:56px;width:168px;height:168px;border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, rgba(200,162,74,.10), rgba(8,12,18,.35));
+    border:1px solid rgba(200,162,74,.30);pointer-events:auto;touch-action:none}
+  #knob{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, rgba(236,208,138,.85), rgba(160,124,52,.65));
+    border:1px solid rgba(236,208,138,.7);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  .tbtns{position:absolute;right:44px;bottom:44px;display:grid;grid-template-columns:repeat(3,72px);
+    gap:10px;pointer-events:none}
+  .tbtn{width:72px;height:72px;border-radius:50%;pointer-events:auto;touch-action:none;user-select:none;
+    font:600 13px/1 "Microsoft JhengHei",system-ui;color:#f0e6cd;
+    background:radial-gradient(circle at 40% 30%, rgba(60,48,28,.92), rgba(18,14,10,.92));
+    border:1px solid rgba(200,162,74,.45);box-shadow:0 6px 16px rgba(0,0,0,.45)}
+  .tbtn:active,.tbtn.hit{background:radial-gradient(circle at 40% 30%, rgba(150,110,40,.95), rgba(40,26,10,.95))}
+  .tbtn.sign{color:#ffd8a8}
+  .tbtn.big{width:88px;height:88px;margin:-8px}
 </style>
 </head>
 <body>
@@ -323,11 +366,36 @@
       <div class="travelDemo">行近未發現嘅路牌會自動解鎖；解鎖狀態會寫入存檔。</div>
       <div class="invHint">按 E / ESC 關閉</div>
     </div>
+    <div id="touchUI" class="touchui">
+      <div id="stick"><div id="knob"></div></div>
+      <div class="tbtns">
+        <button class="tbtn sign" data-act="igni">炎印</button>
+        <button class="tbtn sign" data-act="quen">盾印</button>
+        <button class="tbtn" data-act="inv">行囊</button>
+        <button class="tbtn" data-act="interact">Ｅ</button>
+        <button class="tbtn" data-act="dodge">翻滾</button>
+        <button class="tbtn" data-act="potion">藥水</button>
+        <button class="tbtn big" data-act="fast" style="grid-column:3">斬</button>
+        <button class="tbtn big" data-act="heavy" style="grid-column:3">重斬</button>
+      </div>
+    </div>
     <div id="prompt">Ｅ　對話</div>
     <div id="toast"></div>
     <div id="hurt"></div>
   </div>
 
+    <div id="savePanel" class="panel">
+      <h3>存檔 · 三個位置</h3>
+      <div id="saveList"></div>
+      <div class="invHint">S 開關 · ESC 關閉 · 自動存檔寫入當前位置 · <a href="#" id="openSettings" style="color:#e8c974">設定</a></div>
+    </div>
+    <div id="settingsPanel" class="panel">
+      <h3>設定</h3>
+      <div class="setRow"><span>音樂音量</span><input id="setMusic" type="range" min="0" max="100" value="90"></div>
+      <div class="setRow"><span>8 方向行走動畫</span><input id="setDirs" type="checkbox" checked></div>
+      <div class="setRow"><span>每 20 秒自動存檔</span><input id="setAuto" type="checkbox" checked></div>
+      <div class="invHint">ESC 關閉 · 設定會記住</div>
+    </div>
   <div id="dialog" class="hidden">
     <div class="dpanel">
       <img id="dPortrait" class="dportrait" alt="">
@@ -362,9 +430,10 @@
       <h1>灰狼<span>：</span>霧沼之獸</h1>
       <div class="tsub">A dark-fantasy vertical slice · pure Canvas 2D</div>
       <div class="tstart" id="titleStart">按 <b>ENTER</b> 開始</div>
+      <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.8 · 56 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.12 · 68 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -382,9 +451,8 @@
 (function(){
 'use strict';
 
-/* =========================================================
-   0. 基本設定
-   ========================================================= */
+/* ===== 0. 基本設定 ===== */
+/* ---- part-01.js · 0. 基本設定 ---- */
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const VW = 1280, VH = 720;
@@ -406,9 +474,8 @@ const TAU = Math.PI*2;
 
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 
-/* =========================================================
-   1. 音效（極簡 WebAudio，首次互動後才啟動）
-   ========================================================= */
+/* ===== 1. 音效（極簡 WebAudio，首次互動後才啟動） ===== */
+/* ---- part-02.js · 1. 音效（極簡 WebAudio，首次互動後才啟動） ---- */
 const AudioFX = (function(){
   let ac=null, muted=false;
   let musicBus=null, padFilter=null, combatGain=null, bossGain=null, musicTimer=null, beatTimer=null, bossTimer=null;
@@ -516,7 +583,7 @@ const AudioFX = (function(){
   }
 
   return {
-    setMuted(m){muted=m; if(musicBus&&ac){ try{ musicBus.gain.setTargetAtTime(m?0:0.9, ac.currentTime, 0.15); }catch(e){} }},
+    setMuted(m){muted=m; if(musicBus&&ac){ try{ musicBus.gain.setTargetAtTime(m?0:(0.9*(SETTINGS.music==null?1:SETTINGS.music)), ac.currentTime, 0.15); }catch(e){} }},
     isMuted(){return muted;},
     swing(){ if(!ac||muted)return; const s=noise(.08), f=ac.createBiquadFilter(), g=ac.createGain();
       f.type='bandpass'; f.frequency.value=1800; g.gain.value=.12;
@@ -534,10 +601,8 @@ const AudioFX = (function(){
   };
 })();
 
-
-/* =========================================================
-   2. 世界資料
-   ========================================================= */
+/* ===== 2. 世界資料 ===== */
+/* ---- part-03.js · 2. 世界資料 ---- */
 const pathPts = [[1240,1520],[1560,1600],[1920,1720],[2320,1860],[2760,2000],[3200,2160],[3620,2320],[3980,2460]];
 const swamp = {x:4160,y:2670,rx:660,ry:430};
 const pond = {x:1000,y:2500,rx:430,ry:250};
@@ -734,9 +799,8 @@ addProp({kind:'barrel', x:700, y:2300});
 addProp({kind:'cart', x:640, y:2380, rot:1.2});
 addSolid({type:'circle', x:640, y:2386, r:15});
 
-/* =========================================================
-   3. 地面分塊（tile）預渲染
-   ========================================================= */
+/* ===== 3. 地面分塊（tile）預渲染 ===== */
+/* ---- part-04.js · 3. 地面分塊（tile）預渲染 ---- */
 const TILE=512, TILE_MAX=40;
 const tileCache=new Map();
 
@@ -885,9 +949,8 @@ function drawGround(){
   }
 }
 
-/* =========================================================
-   4. 狀態
-   ========================================================= */
+/* ===== 4. 狀態 ===== */
+/* ---- part-05.js · 4. 狀態 ---- */
 const G = {
   mode:'title',
   time:0, tScale:1, shake:0, hitStop:0, rain:0.55,
@@ -1051,13 +1114,32 @@ const wereLair = {x:2160, y:1200};
 const sideHagPos = {x:4660, y:2930};
 const sideCrates = [[4380,2716],[4516,2956],[4676,2820]];
 
-const SAVE_KEY = 'greywolf_save_v1';
-let memSave = null;
+const SAVE_KEY_LEGACY = 'greywolf_save_v1';
+const SLOT_KEY = 'whitewolf_slot';
+const SLOT_COUNT = 3;
+const slotKey = n => 'whitewolf_save_slot' + n;
+const memSaves = {};
+let CUR_SLOT = 1;
+try{ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, parseInt(localStorage.getItem(SLOT_KEY)||'1',10)||1)); }catch(e){}
 
+/* ---- v0.10：設定 ---- */
+const SETTINGS_KEY = 'whitewolf_settings';
+const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true };
+let SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
+function loadSettings(){
+  try{ const raw = localStorage.getItem(SETTINGS_KEY); if(raw) SETTINGS = Object.assign(SETTINGS, JSON.parse(raw)); }catch(e){}
+  if(typeof G !== 'undefined' && G) G.useDirs = !!SETTINGS.dirs;
+  return SETTINGS;
+}
+function saveSettings(){ try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); }catch(e){} }
+function applySettings(){
+  try{ if(typeof musicBus !== 'undefined' && musicBus && typeof ac !== 'undefined' && ac){
+    musicBus.gain.setTargetAtTime(0.9*(SETTINGS.music==null?1:SETTINGS.music), ac.currentTime, 0.12); } }catch(e){}
+  if(typeof G !== 'undefined' && G) G.useDirs = !!SETTINGS.dirs;
+}
 
-/* =========================================================
-   5. 生成 / 重設
-   ========================================================= */
+/* ===== 5. 生成 / 重設 ===== */
+/* ---- part-06.js · 5. 生成 / 重設 ---- */
 function makeNPC(id, name, x, y, color){
   return {kind:'npc', id, name, x, y, r:14, color, facing:Math.PI/2, talk:0};
 }
@@ -1153,9 +1235,8 @@ function resetGame(){
   updateHUD();
 }
 
-/* =========================================================
-   6. 輸入
-   ========================================================= */
+/* ===== 6. 輸入 ===== */
+/* ---- part-07.js · 6. 輸入 ---- */
 const keys={};
 const mouse={x:VW/2, y:VH/2, left:false, right:false};
 
@@ -1171,6 +1252,9 @@ addEventListener('keydown', e=>{
     else if(G.mode==='dead'){ retryFromSave(); }
   }
   if(G.mode==='title' && e.code==='KeyN'){ clearSave(); startGame(true); }
+  if((G.mode==='title'||G.mode==='play') && e.code==='KeyS'){ openSavePanel(); }
+  if(G.mode==='save' && (e.code==='KeyS'||e.code==='Escape')){ closeSavePanel(); }
+  if(G.mode==='settings' && e.code==='Escape'){ closeSettings(); }
   if(G.mode==='play'){
     if(e.code==='Digit1') castSign('igni');
     if(e.code==='Digit2') castSign('aard');
@@ -1263,6 +1347,7 @@ function pickLoot(wx,wy){
   return null;
 }
 function mouseAction(button, w){
+  if(typeof Touch!=='undefined' && Touch.active) return;   // v0.12：觸控模式用搖桿，唔好誤觸
   if(player.dead) return;
   if(button===2){
     const t = (player.target && player.target.state!=='dead') ? player.target : w;
@@ -1345,9 +1430,8 @@ function tryPending(){
   }
 }
 
-/* =========================================================
-   7. 幾何 / 碰撞
-   ========================================================= */
+/* ===== 7. 幾何 / 碰撞 ===== */
+/* ---- part-08.js · 7. 幾何 / 碰撞 ---- */
 function resolveCircle(x,y,r){
   let px=x, py=y;
   for(const s of solids){
@@ -1375,9 +1459,8 @@ function inWater(x,y){
   return Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry) < .92;
 }
 
-/* =========================================================
-   8. 戰鬥
-   ========================================================= */
+/* ===== 8. 戰鬥 ===== */
+/* ---- part-09.js · 8. 戰鬥 ---- */
 function angDiff(a,b){
   let d=(a-b)%TAU;
   if(d>Math.PI) d-=TAU;
@@ -2257,16 +2340,24 @@ function toast(t, sub){
 }
 
 /* ---- 存檔 / 行囊 ---- */
-function storageGet(){ try{ return localStorage.getItem(SAVE_KEY); }catch(e){ return memSave; } }
-function storageSet(v){ try{ localStorage.setItem(SAVE_KEY,v); }catch(e){ memSave=v; } }
-function hasSave(){ return !!storageGet(); }
+function setSlot(n){ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, n||1));
+  try{ localStorage.setItem(SLOT_KEY, String(CUR_SLOT)); }catch(e){} }
+function storageGet(slot){ const k = slotKey(slot||CUR_SLOT);
+  try{ return localStorage.getItem(k); }catch(e){ return memSaves[k]||null; } }
+function storageSet(v, slot){ const k = slotKey(slot||CUR_SLOT);
+  try{ localStorage.setItem(k, v); }catch(e){ memSaves[k] = v; } }
+function hasSave(slot){ return !!storageGet(slot); }
+function migrateLegacySave(){
+  try{ const old = localStorage.getItem(SAVE_KEY_LEGACY);
+    if(old && !storageGet(1)) storageSet(old, 1); }catch(e){}
+}
 function flashSave(){
   const el=document.getElementById('saveHint'); if(!el) return;
   el.classList.add('on'); clearTimeout(flashSave._t);
   flashSave._t=setTimeout(()=>el.classList.remove('on'),1300);
 }
-function saveGame(){
-  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith' && G.mode!=='travel') return;
+function saveGame(slot){
+  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith' && G.mode!=='travel' && G.mode!=='save') return;
   try{
     const data={v:3, ts:Date.now(), level:G.level, xp:G.xp, gold:G.gold, quest:G.quest,
       hp:Math.round(player.hp), maxHp:player.maxHp, bonusDmg:player.bonusDmg, dmgMul:player.dmgMul,
@@ -2276,11 +2367,11 @@ function saveGame(){
       dead:enemies.filter(e=>e.state==='dead').map(e=>e.uid),
       loot:loot.map(l=>({x:Math.round(l.x), y:Math.round(l.y), item:l.item})),
       chestOpened, tombwispSpawned, shrineActive};
-    storageSet(JSON.stringify(data)); flashSave();
+    storageSet(JSON.stringify(data), slot||CUR_SLOT); flashSave();
   }catch(e){}
 }
-function loadGame(){
-  const raw=storageGet(); if(!raw) return false;
+function loadGame(slot){
+  const raw=storageGet(slot||CUR_SLOT); if(!raw) return false;
   let d; try{ d=JSON.parse(raw); }catch(e){ return false; }
   resetGame();
   G.level=d.level||1; G.xp=d.xp||0; G.gold=d.gold||0; G.quest=d.quest||0; G.kills=d.kills||0;
@@ -2328,9 +2419,77 @@ function loadGame(){
     G.bossOn=true; document.getElementById('bossbar').classList.add('on');
   }
   updateQuestUI(); updateHUD();
+  setSlot(slot||CUR_SLOT);
   return true;
 }
-function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} memSave=null; }
+function clearSave(slot){ const k = slotKey(slot||CUR_SLOT);
+  try{ localStorage.removeItem(k); }catch(e){} delete memSaves[k]; }
+
+/* ---- v0.10：存檔面板 / 設定面板 ---- */
+function slotMeta(n){
+  const raw = storageGet(n); if(!raw) return null;
+  try{ const d = JSON.parse(raw);
+    return { level:d.level||1, gold:d.gold||0, quest:d.quest||0, ts:d.ts||0,
+             hp:Math.round(d.hp||0), maxHp:d.maxHp||0, x:Math.round(d.x||0), y:Math.round(d.y||0) };
+  }catch(e){ return null; }
+}
+function slotDate(ts){
+  if(!ts) return '';
+  const d = new Date(ts), p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function renderSavePanel(){
+  const box = document.getElementById('saveList'); if(!box) return;
+  box.innerHTML = '';
+  for(let n=1; n<=SLOT_COUNT; n++){
+    const m = slotMeta(n);
+    const row = document.createElement('div');
+    row.className = 'slotRow' + (n===CUR_SLOT ? ' cur' : '');
+    const meta = m
+      ? '<b>Lv '+m.level+'</b>　'+m.gold+' 克朗　任務 '+m.quest+'/7<br><span style="color:#8f8877">'+slotDate(m.ts)+'　HP '+m.hp+'/'+m.maxHp+'</span>'
+      : '<span class="empty">（空）</span>';
+    row.innerHTML = '<div class="slotNo">'+n+'</div><div class="slotMeta">'+meta+'</div>';
+    const btns = document.createElement('div'); btns.className = 'slotBtns';
+    const mk = (label, fn, disabled) => {
+      const b = document.createElement('button'); b.className='sbtn'; b.textContent=label;
+      if(disabled) b.disabled = true; else b.onclick = fn;
+      btns.appendChild(b);
+    };
+    mk('存入', ()=>doSave(n));
+    mk('讀取', ()=>doLoad(n), !m);
+    mk('刪除', ()=>doDel(n), !m);
+    row.appendChild(btns);
+    box.appendChild(row);
+  }
+}
+function openSavePanel(){
+  if(G.mode!=='title' && G.mode!=='play') return;
+  G._prevMode = G.mode;
+  G.mode = 'save';
+  renderSavePanel();
+  document.getElementById('savePanel').classList.add('on');
+}
+function closeSavePanel(){
+  document.getElementById('savePanel').classList.remove('on');
+  G.mode = G._prevMode || 'play';
+}
+function doSave(n){ setSlot(n); saveGame(n); renderSavePanel(); toast('已存入存檔 '+n); }
+function doLoad(n){
+  if(!hasSave(n)) return;
+  setSlot(n);
+  document.getElementById('savePanel').classList.remove('on');
+  if(loadGame(n)){ G.mode='play'; toast('已讀取存檔 '+n); }
+}
+function doDel(n){ clearSave(n); renderSavePanel(); toast('已刪除存檔 '+n); }
+
+function openSettings(){
+  const m = document.getElementById('setMusic'), d = document.getElementById('setDirs'), a = document.getElementById('setAuto');
+  if(m) m.value = Math.round((SETTINGS.music==null?0.9:SETTINGS.music)*100);
+  if(d) d.checked = !!SETTINGS.dirs;
+  if(a) a.checked = SETTINGS.autosave !== false;
+  document.getElementById('settingsPanel').classList.add('on');
+}
+function closeSettings(){ document.getElementById('settingsPanel').classList.remove('on'); }
 
 function toggleInventory(){
   if(G.mode==='inventory'){ G.mode='play'; document.getElementById('invPanel').classList.remove('on'); return; }
@@ -2420,9 +2579,8 @@ function showEnding(kind){
   document.getElementById('over').classList.remove('hidden');
 }
 
-/* =========================================================
-   10. 粒子 / 浮字
-   ========================================================= */
+/* ===== 10. 粒子 / 浮字 ===== */
+/* ---- part-10.js · 10. 粒子 / 浮字 ---- */
 function showEpilogue(){
   const t=G.story.truth, seal=G.story.seal;
   const sec=[];
@@ -2470,9 +2628,8 @@ function floatText(x,y,txt,color){
   texts.push({x,y,txt,color,t:0,life:1.1});
 }
 
-/* =========================================================
-   11. 更新
-   ========================================================= */
+/* ===== 11. 更新 ===== */
+/* ---- part-11.js · 11. 更新 ---- */
 function update(dt){
   G.time+=dt;
   if(G.hitStop>0){ G.hitStop-=dt; }
@@ -2500,7 +2657,7 @@ function update(dt){
 
   // 自動存檔（每 20 秒）
   G.saveTimer=(G.saveTimer||0)+dt;
-  if(G.saveTimer>20){ G.saveTimer=0; saveGame(); }
+  if(G.saveTimer>20){ G.saveTimer=0; if(SETTINGS.autosave!==false) saveGame(); }
 
   // 路牌解鎖（行近 170px）
   for(const tp of TRAVEL){ if(dist(player,tp) < 170) unlockTravel(tp); }
@@ -2525,6 +2682,10 @@ function update(dt){
   if(keys['KeyS']||keys['ArrowDown']) my++;
   if(keys['KeyA']||keys['ArrowLeft']) mx--;
   if(keys['KeyD']||keys['ArrowRight']) mx++;
+  // v0.12：虛擬搖桿（類比）
+  if(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.12){
+    mx += Touch.x*Touch.mag; my += Touch.y*Touch.mag; player.moveTo=null;
+  }
   const len=Math.hypot(mx,my);
   if(len>0){ mx/=len; my/=len; player.moveTo=null; }
 
@@ -2549,7 +2710,8 @@ function update(dt){
   }
 
   player.moving = (moveAng!==null) || player.dodge>0;
-  const sprinting=(keys['ShiftLeft']||keys['ShiftRight'])&&player.stam>2&&moveAng!==null;
+  const touchSprint=(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.88);
+  const sprinting=((keys['ShiftLeft']||keys['ShiftRight'])||touchSprint)&&player.stam>2&&moveAng!==null;
   let spd = sprinting?player.sprint:player.speed;
   if(inWater(player.x,player.y)) spd*=.72;
   if(player.atk&&player.atk.t<player.atk.dur*.6) spd*=.35;
@@ -2906,9 +3068,8 @@ function drawMinimap(){
   g.strokeRect(.5,.5,w-1,h-1);
 }
 
-/* =========================================================
-   12. 繪圖
-   ========================================================= */
+/* ===== 12. 繪圖 ===== */
+/* ---- part-12.js · 12. 繪圖 ---- */
 function worldToScreen(x,y){ return {x:x-cam.x, y:y-cam.y}; }
 
 function draw(){
@@ -3928,9 +4089,8 @@ function drawQuestMarker(){
   }
 }
 
-/* =========================================================
-   13. HUD 更新
-   ========================================================= */
+/* ===== 13. HUD 更新 ===== */
+/* ---- part-13.js · 13. HUD 更新 ---- */
 function updateHUD(){
   document.getElementById('hpFill').style.width=(player.hp/player.maxHp*100)+'%';
   document.getElementById('stFill').style.width=(player.stam/player.maxStam*100)+'%';
@@ -3953,9 +4113,8 @@ function updateHUD(){
   }
 }
 
-/* =========================================================
-   14. 主循環
-   ========================================================= */
+/* ===== 14. 主循環 ===== */
+/* ---- part-14.js · 14. 主循環 ---- */
 let last=performance.now();
 let lastPlaying=null;
 function loop(now){
@@ -3974,9 +4133,87 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
-/* =========================================================
-   15. 啟動
-   ========================================================= */
+/* ===== 16. 觸控（v0.12） ===== */
+/* ---- 觸控 / 虛擬搖桿（v0.12） ---- */
+const Touch = { active:false, x:0, y:0, mag:0, forced:false };
+
+function setTouchMode(on){
+  Touch.active = !!on;
+  try{ document.body.classList.toggle('touchmode', Touch.active); }catch(e){}
+  return Touch.active;
+}
+function touchAct(act){
+  if(!Touch.active && !Touch.forced) return false;
+  try{
+    switch(act){
+      case 'fast': attack('fast'); break;
+      case 'heavy': attack('heavy'); break;
+      case 'dodge':
+        dodgeToward(player.x+Math.cos(player.facing)*90, player.y+Math.sin(player.facing)*90); break;
+      case 'igni': case 'aard': case 'quen': castSign(act); break;
+      case 'interact': interact(); break;
+      case 'inv': toggleInventory(); break;
+      case 'potion': drinkPotion(); break;
+      default: return false;
+    }
+    return true;
+  }catch(e){ return false; }
+}
+(function initTouch(){
+  let on = false;
+  try{
+    const q = new URLSearchParams(location.search);
+    Touch.forced = q.get('touch')==='1';
+    on = Touch.forced || ('ontouchstart' in window) || ((navigator.maxTouchPoints||0) > 0);
+  }catch(e){}
+  setTouchMode(on);
+
+  const stick = document.getElementById('stick');
+  const knob  = document.getElementById('knob');
+  if(!stick || !knob) return;
+  let id = null, cx = 0, cy = 0, R = 70;
+
+  const reset = () => {
+    Touch.x = Touch.y = Touch.mag = 0;
+    knob.style.transform = 'translate(0,0)';
+  };
+  const move = (e) => {
+    let dx = e.clientX - cx, dy = e.clientY - cy;
+    const d = Math.hypot(dx, dy) || 1;
+    const m = Math.min(1, d / R);
+    Touch.mag = m;
+    Touch.x = dx / d; Touch.y = dy / d;
+    knob.style.transform = 'translate(' + (dx / d * m * R) + 'px,' + (dy / d * m * R) + 'px)';
+  };
+
+  stick.addEventListener('pointerdown', e => {
+    id = e.pointerId;
+    try{ stick.setPointerCapture(id); }catch(err){}
+    const r = stick.getBoundingClientRect();
+    // stage 可能被縮放，用實際 rect 換算比例
+    R = r.width * 0.42;
+    cx = r.left + r.width/2; cy = r.top + r.height/2;
+    move(e); Touch.active = true;
+  });
+  stick.addEventListener('pointermove', e => { if(id===e.pointerId) move(e); });
+  const up = e => { if(id===e.pointerId){ id = null; reset(); } };
+  stick.addEventListener('pointerup', up);
+  stick.addEventListener('pointercancel', up);
+
+  document.querySelectorAll('.tbtn').forEach(btn => {
+    const act = btn.getAttribute('data-act');
+    const fire = e => {
+      e.preventDefault(); e.stopPropagation();
+      btn.classList.add('hit'); setTimeout(()=>btn.classList.remove('hit'), 120);
+      touchAct(act);
+    };
+    btn.addEventListener('pointerdown', fire, { passive:false });
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+})();
+
+/* ===== 15. 啟動 ===== */
+/* ---- part-15.js · 15. 啟動 ---- */
 function runSelfTest(){
   document.getElementById('title').classList.add('hidden');
   document.getElementById('over').classList.add('hidden');
@@ -4031,6 +4268,40 @@ function runSelfTest(){
   G.gold=999;
   const loaded=loadGame();
   ok('讀檔還原', loaded && G.gold===goldBefore, 'gold='+G.gold);
+
+  // v0.10: 三個存檔槽
+  G.gold=1234; saveGame(2);
+  ok('槽 2 存檔', hasSave(2));
+  G.gold=0; loadGame(2);
+  ok('槽 2 讀檔', G.gold===1234, 'gold='+G.gold);
+  clearSave(3);
+  ok('空槽 3', !hasSave(3) && !slotMeta(3));
+  { try{ localStorage.setItem(SAVE_KEY_LEGACY, JSON.stringify({v:3, level:7, gold:77, ts:Date.now()}));
+          localStorage.removeItem(slotKey(1)); }catch(e){} }
+  migrateLegacySave();
+  ok('舊檔遷移', hasSave(1), 'level='+(slotMeta(1)||{}).level);
+
+  // v0.10: 設定
+  SETTINGS.music=0.5; SETTINGS.dirs=false; SETTINGS.autosave=false;
+  saveSettings(); SETTINGS=Object.assign({}, DEFAULT_SETTINGS); loadSettings();
+  ok('設定持久化', Math.abs(SETTINGS.music-0.5)<0.001 && SETTINGS.dirs===false, JSON.stringify(SETTINGS));
+  applySettings();
+  ok('設定套用', G.useDirs===false);
+
+  // v0.12: 觸控
+  ok('觸控層存在', !!document.getElementById('touchUI') && document.querySelectorAll('.tbtn').length>=8,
+     'btns='+document.querySelectorAll('.tbtn').length);
+  setTouchMode(true);
+  Touch.x=1; Touch.y=0; Touch.mag=1;
+  const tx0=player.x; player.moveTo=null; player.target=null; update(0.12);
+  ok('搖桿移動', player.x>tx0, 'dx='+(player.x-tx0).toFixed(1));
+  ok('觸控停用滑鼠鎖敵', (()=>{ player.target=null; mouseAction(1,{x:player.x+80,y:player.y}); return player.target===null; })());
+  G.gold=0; player.stam=100; player.atkCd=0; player.atk=null;
+  touchAct('fast');
+  ok('觸控攻擊', !!player.atk, 'atk='+(player.atk&&player.atk.kind));
+  setTouchMode(false); Touch.x=Touch.y=Touch.mag=0;
+  ok('觸控可關閉', !document.body.classList.contains('touchmode'));
+  SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings();
 
   // 戰鬥
   enemies=[];
@@ -4302,6 +4573,8 @@ function startGame(fresh){
   if(pos==='side'){ player.x=2260; player.y=1340; }
   if(q.get('side')==='1'){ acceptSide(); }
   if(q.get('dirs')==='0') G.useDirs=false;
+if(q.get('show')==='save') setTimeout(()=>{ try{ renderSavePanel(); document.getElementById('savePanel').classList.add('on'); }catch(e){} }, 200);
+if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){} }, 200);
   if(q.get('pose')==='side'){
     acceptSide();
     player.x=2230; player.y=1290; player.facing=1.0;
@@ -4369,7 +4642,11 @@ if(new URLSearchParams(location.search).get('play')==='1'){
   startGame(new URLSearchParams(location.search).get('fresh')==='1');
 }
 if(new URLSearchParams(location.search).get('test')==='1'){
-  setTimeout(runSelfTest, 400);
+  migrateLegacySave();
+loadSettings();
+applySettings();
+
+setTimeout(runSelfTest, 400);
 }
 requestAnimationFrame(loop);
 
