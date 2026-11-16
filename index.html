@@ -1,0 +1,3978 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>灰狼：霧沼之獸 — Vertical Slice</title>
+<style>
+  :root{
+    --gold:#c8a24a; --gold2:#ecd08a; --ink:#070a0e; --panel:rgba(9,12,16,.86);
+    --blood:#8e1f1f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#04060a;overflow:hidden;
+    font-family:"Microsoft JhengHei","Noto Sans TC","PingFang TC",system-ui,sans-serif;color:#e9e3d3;
+    user-select:none}
+  #stage{position:absolute;left:50%;top:50%;width:1280px;height:720px;margin:-360px 0 0 -640px;
+    background:#000;overflow:hidden;transform-origin:center}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hidden{display:none !important}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;inset:0;pointer-events:none;transition:opacity .45s}
+  body:not(.playing) #hud{opacity:0}
+  #hud .panel{background:linear-gradient(180deg,rgba(12,16,21,.78),rgba(7,9,12,.6));
+    border:1px solid rgba(200,162,74,.35);box-shadow:0 0 24px rgba(0,0,0,.5) inset,0 6px 24px rgba(0,0,0,.35)}
+
+  #vitals{position:absolute;left:26px;top:24px;display:flex;gap:14px;align-items:center}
+  #medal{width:74px;height:74px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+  .bars{width:300px}
+  .nameRow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+  .pname{font-family:Georgia,"Times New Roman",serif;letter-spacing:2px;font-size:15px;color:#efe6cd}
+  .plvl{font-size:11px;color:#a89467;letter-spacing:1px}
+  .bar{height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(200,162,74,.4);position:relative;overflow:hidden;
+    border-radius:2px;margin-bottom:6px}
+  .bar i{position:absolute;inset:0;width:100%;transition:width .15s linear;display:block}
+  #hpFill{background:linear-gradient(180deg,#b3272d,#6e1216);box-shadow:0 0 12px rgba(179,39,45,.5)}
+  #stFill{background:linear-gradient(180deg,#3f7d6a,#1e4438)}
+  .bar.st{height:7px;opacity:.9}
+  .bar span{position:absolute;right:6px;top:-1px;font-size:9px;color:rgba(233,227,211,.55);letter-spacing:1px}
+
+  #questBox{position:absolute;right:26px;top:24px;width:308px;padding:12px 15px 13px}
+  #questBox .qhead{font-size:10px;letter-spacing:2px;color:#c8a24a;margin-bottom:5px}
+  #questBox .qtitle{font-family:Georgia,serif;font-size:16px;color:#efe6cd;margin-bottom:6px}
+  #questBox .qobj{font-size:12px;line-height:1.55;color:#c9c2b0}
+  #questBox .qobj b{color:#e8c974;font-weight:600}
+  #questBox .qgold{float:right;font-size:12px;color:#e8c974;letter-spacing:1px}
+
+  #signs{position:absolute;right:26px;bottom:26px;display:flex;gap:10px}
+  .sign{width:58px;height:58px;position:relative;display:flex;align-items:flex-end;justify-content:center;
+    padding-bottom:4px;cursor:default}
+  .sign svg{width:26px;height:26px;position:absolute;top:8px;left:16px;opacity:.92}
+  .sign b{font-size:9px;letter-spacing:1px;color:#cfc6ae;font-weight:400}
+  .sign .key{position:absolute;top:-2px;left:50%;transform:translateX(-50%);font-size:9px;color:#8f8straight}
+  .sign .key{color:#8a7a55}
+  .sign.cool{filter:grayscale(.8) brightness(.6)}
+  .sign .cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:16px;color:#f0d9a0;background:rgba(0,0,0,.45);opacity:0}
+  .sign.cool .cd{opacity:1}
+
+  #hint{position:absolute;left:26px;bottom:26px;font-size:11px;color:rgba(220,212,190,.45);letter-spacing:.5px;line-height:1.8}
+  #hint b{color:rgba(232,201,116,.7);font-weight:500}
+
+  #prompt{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);font-size:13px;letter-spacing:2px;
+    color:#efe6cd;background:rgba(6,8,11,.7);border:1px solid rgba(200,162,74,.35);padding:6px 14px;opacity:0;transition:opacity .15s}
+  #prompt.on{opacity:1}
+
+  #toast{position:absolute;left:50%;top:172px;transform:translateX(-50%);text-align:center;
+    font-size:14px;letter-spacing:1.5px;color:#f0dfae;text-shadow:0 2px 12px #000;opacity:0;transition:opacity .3s}
+  #toast.on{opacity:1}
+  #toast small{display:block;font-size:11px;color:#b7ad93;letter-spacing:1px;margin-top:3px}
+
+  #bossbar{position:absolute;left:50%;top:100px;transform:translateX(-50%);width:470px;opacity:0;transition:opacity .3s}
+  #bossbar.on{opacity:1}
+  #bossbar .bname{text-align:center;font-family:Georgia,serif;font-size:14px;letter-spacing:3px;color:#e6d5ae;margin-bottom:5px;text-shadow:0 2px 8px #000}
+  #bossbar .bbar{height:9px;background:rgba(0,0,0,.6);border:1px solid rgba(200,162,74,.4)}
+  #bossbar .bbar i{display:block;height:100%;width:100%;background:linear-gradient(180deg,#7d1c2a,#3c0a10);transition:width .2s}
+
+  #hurt{position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(120,10,14,.55) 100%);transition:opacity .25s}
+
+  /* ---------- Dialog ---------- */
+  #dialog{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:54px;
+    background:linear-gradient(180deg,transparent 40%,rgba(3,4,6,.55));z-index:5}
+  .dpanel{width:860px;background:linear-gradient(180deg,rgba(14,18,23,.96),rgba(7,9,12,.97));
+    border:1px solid rgba(200,162,74,.45);padding:20px 26px 18px;position:relative;
+    box-shadow:0 20px 60px rgba(0,0,0,.7)}
+  .dpanel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#c8a24a,#6b4f1c)}
+  .dname{font-family:Georgia,serif;font-size:15px;letter-spacing:2px;color:#e8c974;margin-bottom:8px}
+  .dtext{font-size:15px;line-height:1.85;color:#ded7c6;min-height:56px;margin-bottom:12px}
+  .dopts{display:flex;flex-direction:column;gap:6px}
+  .dopt{font-size:13.5px;color:#cfc6ae;padding:7px 10px;border:1px solid transparent;cursor:pointer;pointer-events:auto}
+  .dopt:hover,.dopt.sel{background:rgba(200,162,74,.08);border-color:rgba(200,162,74,.3);color:#f2e6c6}
+  .dopt b{color:#e8c974;margin-right:10px;font-weight:500}
+
+  /* ---------- Title / End ---------- */
+  #title,#over{position:absolute;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%,rgba(12,17,22,.86),rgba(2,3,5,.985) 68%)}
+  .tinner{text-align:center;max-width:820px}
+  .tkicker{font-size:10px;letter-spacing:5px;color:#9c8a5e;margin-bottom:18px}
+  .tinner h1{font-family:Georgia,"Times New Roman",serif;font-size:64px;letter-spacing:8px;margin:0 0 10px;
+    color:#ece2c8;font-weight:400;text-shadow:0 6px 40px rgba(0,0,0,.8)}
+  .tinner h1 span{color:#c8a24a}
+  .tsub{font-family:Georgia,serif;font-style:italic;font-size:15px;color:#9f957e;letter-spacing:1px;margin-bottom:42px}
+  .tstart{font-size:14px;letter-spacing:4px;color:#c8a24a;margin-bottom:30px}
+  .tstart b{color:#f0d9a0;border:1px solid rgba(200,162,74,.5);padding:2px 8px;margin:0 4px}
+  .tctrl{font-size:11.5px;color:#8d8673;letter-spacing:1px;line-height:2}
+  .tnote{margin-top:26px;font-size:10px;color:#5f5a4e;letter-spacing:1px}
+  .tnote em{font-style:normal;color:#8a7a55}
+  #over .tinner h1{font-size:40px;letter-spacing:4px}
+  #over .ostats{font-size:13px;color:#b9b09a;line-height:2;margin:18px 0 26px;letter-spacing:1px}
+  #over .ostats b{color:#e8c974;font-weight:500}
+
+  /* ---------- Inventory / assets ---------- */
+  #invPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:620px;padding:22px 30px 18px;z-index:7;
+    background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));border:1px solid rgba(200,162,74,.5);
+    box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
+  #invPanel.on{display:block}
+  #invPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 16px;font-weight:400}
+  .invGrid{display:grid;grid-template-columns:1fr 1fr;gap:0 34px}
+  .invRow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#b9b09a}
+  .invRow b{color:#efe6cd;font-weight:500}
+  .invRow .tag{font-size:11px;color:#7f7968}
+  .invHint{margin-top:16px;font-size:11px;color:#6f6a5c;text-align:center;letter-spacing:1px}
+  .dportrait{width:78px;height:78px;border-radius:50%;object-fit:cover;border:1px solid rgba(200,162,74,.55);
+    float:left;margin:0 16px 6px 0;background:#0a0d10;display:none}
+  .dportrait.on{display:block}
+  #saveHint{position:absolute;right:26px;top:178px;font-size:10px;letter-spacing:2px;color:rgba(232,201,116,.5);opacity:0;transition:opacity .5s}
+  #saveHint.on{opacity:1}
+
+  /* ---------- v0.3: minimap / actions / journal / prologue ---------- */
+  #minimap{position:absolute;right:26px;top:188px;left:auto;bottom:auto;width:206px;height:134px;border:1px solid rgba(200,162,74,.35);
+    background:#080b0f;opacity:.94;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #actions{position:absolute;right:26px;bottom:104px;display:flex;gap:8px;pointer-events:auto}
+  .abtn{width:62px;height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    background:linear-gradient(180deg,rgba(12,16,21,.85),rgba(7,9,12,.7));border:1px solid rgba(200,162,74,.35);
+    color:#cfc6ae;font-size:10px;letter-spacing:1px;cursor:pointer;user-select:none}
+  .abtn:hover{border-color:rgba(232,201,116,.8);color:#f0e2bb;background:rgba(200,162,74,.12)}
+  .abtn b{font-size:12px;color:#e8c974;font-weight:500}
+  #journalPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:680px;max-height:78%;overflow:auto;
+    padding:24px 30px;z-index:7;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
+    border:1px solid rgba(200,162,74,.5);box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
+  #journalPanel.on{display:block}
+  #journalPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 12px;font-weight:400}
+  #journalPanel .jobs{font-size:13.5px;line-height:1.9;color:#ded7c6;border-left:3px solid #c8a24a;padding:8px 14px;background:rgba(200,162,74,.06);margin-bottom:16px}
+  .jrow{display:flex;gap:14px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;line-height:1.7}
+  .jrow b{color:#e8c974;font-weight:500;min-width:64px}
+  .jrow span{color:#b9b09a}
+  #prologue{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%,rgba(10,14,20,.92),rgba(2,3,5,.99) 72%)}
+  #prologue .pbox{width:760px;text-align:left}
+  #prologue .pk{font-size:10px;letter-spacing:5px;color:#8a7a55;margin-bottom:20px}
+  #prologue .pline{font-family:Georgia,serif;font-size:19px;line-height:2.1;color:#d8d2c2;margin-bottom:14px;opacity:0;animation:fadein 1.2s forwards}
+  #prologue .pline:nth-child(2){animation-delay:.5s}
+  #prologue .pline:nth-child(3){animation-delay:1.1s}
+  #prologue .pline:nth-child(4){animation-delay:1.7s}
+  @keyframes fadein{to{opacity:1}}
+  #prologue .pgo{margin-top:34px;font-size:12px;letter-spacing:3px;color:#c8a24a;text-align:center;animation:fadein 1s 2.4s forwards;opacity:0}
+  #prologue .pgo b{border:1px solid rgba(200,162,74,.5);padding:2px 8px;color:#f0d9a0}
+  #prologue.instant .pline,#prologue.instant .pgo{animation:none !important;opacity:1 !important}
+
+  /* ---------- v0.4: 支線 / 鐵匠 ---------- */
+  #qSide{margin-top:9px;padding-top:8px;border-top:1px solid rgba(200,162,74,.22);font-size:11px;line-height:1.55;color:#a8a08c}
+  #qSide b{color:#e8c974;font-weight:500}
+  #smithPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:660px;padding:22px 30px;z-index:8;
+    background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));border:1px solid rgba(200,162,74,.5);
+    box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
+  #smithPanel.on{display:block}
+  #smithPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 14px;font-weight:400}
+  .smithRow{display:grid;grid-template-columns:1.15fr 1.1fr auto;gap:12px;align-items:center;
+    padding:11px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px}
+  .smithRow .cur{color:#efe6cd}
+  .smithRow .nxt{color:#a8a08c;line-height:1.5}
+  .smithRow .cost{display:block;font-size:10.5px;color:#8f8468;margin-top:2px}
+  .upgBtn{border:1px solid rgba(200,162,74,.5);padding:7px 11px;font-size:11px;color:#e8c974;background:rgba(200,162,74,.08);cursor:pointer;pointer-events:auto}
+  .upgBtn:hover{background:rgba(200,162,74,.22)}
+  .upgBtn.off{opacity:.35;cursor:not-allowed}
+  .smithMats{display:flex;gap:18px;margin-top:14px;font-size:11.5px;color:#a8a08c}
+  .smithMats b{color:#e8c974}
+  /* ---------- v0.6: 後日談 ---------- */
+  #epilogue{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%,rgba(12,18,24,.94),rgba(2,3,5,.99) 72%)}
+  #epilogue .ebox{width:790px}
+  #epilogue .ek{font-size:10px;letter-spacing:5px;color:#8a7a55;margin-bottom:14px}
+  #epilogue h2{font-family:Georgia,serif;font-size:38px;letter-spacing:6px;color:#ece2c8;margin:0 0 22px;font-weight:400}
+  #epilogue .esec{font-size:13.5px;line-height:1.95;color:#cfc6ae;margin-bottom:12px;padding-left:14px;border-left:2px solid rgba(200,162,74,.45)}
+  #epilogue .efin{font-family:Georgia,serif;font-style:italic;font-size:15px;color:#e8c974;margin:24px 0 0;line-height:2}
+  #epilogue .ego{margin-top:30px;font-size:12px;letter-spacing:3px;color:#c8a24a;text-align:center}
+  #epilogue .ego b{border:1px solid rgba(200,162,74,.5);padding:2px 8px;color:#f0d9a0}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" width="1280" height="720"></canvas>
+
+  <div id="hud">
+    <div id="vitals">
+      <svg id="medal" viewBox="0 0 100 100">
+        <defs>
+          <radialGradient id="mg" cx="35%" cy="30%">
+            <stop offset="0" stop-color="#e9d9a8"/><stop offset=".55" stop-color="#b98f3c"/><stop offset="1" stop-color="#5a3f13"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="46" fill="none" stroke="#6b5320" stroke-width="2"/>
+        <circle cx="50" cy="50" r="41" fill="url(#mg)" opacity=".92"/>
+        <path d="M50 24 L58 33 L72 30 L68 45 L78 54 L64 58 L60 72 L50 64 L40 72 L36 58 L22 54 L32 45 L28 30 L42 33 Z"
+              fill="#241a0c" opacity=".85"/>
+        <path d="M50 34 L54 44 L64 47 L56 53 L57 63 L50 58 L43 63 L44 53 L36 47 L46 44 Z" fill="#c8a24a" opacity=".55"/>
+        <circle cx="50" cy="50" r="47" fill="none" stroke="#c8a24a" stroke-width="1" opacity=".55"/>
+      </svg>
+      <div class="bars">
+        <div class="nameRow"><span class="pname">洛恩</span><span class="plvl" id="lvl">LV 1</span></div>
+        <div class="bar"><i id="hpFill"></i><span id="hpTxt">120 / 120</span></div>
+        <div class="bar st"><i id="stFill"></i></div>
+      </div>
+    </div>
+
+    <div id="questBox" class="panel">
+      <div class="qhead">委託　CONTRACT</div>
+      <div class="qtitle" id="qTitle">霧沼的磨坊</div>
+      <div class="qobj" id="qObj">找村長談談。</div>
+      <div id="qSide"></div>
+      <div class="qgold" id="gold">◈ 0</div>
+    </div>
+
+    <canvas id="minimap" width="206" height="134"></canvas>
+
+    <div id="bossbar"><div class="bname">水　鬼　婆</div><div class="bbar"><i id="bossFill"></i></div></div>
+
+    <div id="signs">
+      <div class="sign panel" data-sign="igni">
+        <span class="key">1</span>
+        <svg viewBox="0 0 24 24"><path d="M12 2c3 5-2 6 0 10 1-2 3-3 3-6 3 3 4 6 4 9a7 7 0 1 1-14 0c0-4 2-6 4-8-1 4 1 5 3 5-2-3 0-6 0-10z" fill="#d98a3a"/></svg>
+        <b>炎印</b><span class="cd"></span>
+      </div>
+      <div class="sign panel" data-sign="aard">
+        <span class="key">2</span>
+        <svg viewBox="0 0 24 24"><path d="M3 12c4-6 10-6 14 0-4 6-10 6-14 0z" fill="none" stroke="#7fc7c0" stroke-width="1.6"/><path d="M7 12c2-3 5-3 7 0-2 3-5 3-7 0z" fill="#7fc7c0" opacity=".5"/></svg>
+        <b>震印</b><span class="cd"></span>
+      </div>
+      <div class="sign panel" data-sign="quen">
+        <span class="key">3</span>
+        <svg viewBox="0 0 24 24"><path d="M12 2l8 3v7c0 5-4 8-8 10-4-2-8-5-8-10V5z" fill="none" stroke="#d8c27a" stroke-width="1.6"/><path d="M12 7l5 2v4c0 3-2.5 5-5 6-2.5-1-5-3-5-6V9z" fill="#d8c27a" opacity=".28"/></svg>
+        <b>盾印</b><span class="cd"></span>
+      </div>
+    </div>
+
+    <div id="actions">
+      <div class="abtn" data-act="potion"><b>R</b>藥水</div>
+      <div class="abtn" data-act="inventory"><b>I</b>行囊</div>
+      <div class="abtn" data-act="journal"><b>J</b>日誌</div>
+    </div>
+
+    <div id="hint">
+      <b>左鍵</b> 移動／攻擊　<b>右鍵</b> 重斬　<b>雙擊</b> 翻滾<br>
+      <b>WASD</b> 移動　<b>1 2 3</b> 法印　<b>E</b> 互動　<b>R</b> 藥水　<b>I</b> 行囊　<b>J</b> 日誌
+    </div>
+
+    <div id="saveHint">已自動存檔</div>
+    <div id="invPanel" class="panel">
+      <h3>行囊 · INVENTORY</h3>
+      <div class="invGrid">
+        <div>
+          <div class="invRow"><span>武器</span><b id="invSword">空手</b></div>
+          <div class="invRow"><span>護甲</span><b id="invArmor">無</b></div>
+          <div class="invRow"><span>攻擊加成</span><b id="invDmg">+0</b></div>
+        </div>
+        <div>
+          <div class="invRow"><span>生命上限</span><b id="invHp">120</b></div>
+          <div class="invRow"><span>金幣</span><b id="invGold">0</b></div>
+          <div class="invRow"><span>獎盃</span><b id="invTrophy">—</b></div>
+          <div class="invRow"><span>夜泣油</span><b id="invBuff">—</b></div>
+          <div class="invRow"><span>材料</span><b id="invMats">—</b></div>
+        </div>
+      </div>
+      <div class="invHint">按 I 關閉　·　進度會自動存檔</div>
+    </div>
+
+    <div id="journalPanel" class="panel">
+      <h3>獵魔人日誌 · JOURNAL</h3>
+      <div class="jobs" id="jObj"></div>
+      <div id="jBody"></div>
+      <div class="invHint">按 J 關閉</div>
+    </div>
+
+    <div id="smithPanel" class="panel">
+      <h3>鐵匠 老莫 · 升級</h3>
+      <div class="smithRow">
+        <div class="cur">武器<br><b id="smithWCur">空手</b></div>
+        <div class="nxt" id="smithWNext">—</div>
+        <button class="upgBtn" id="smithWBtn">升級</button>
+      </div>
+      <div class="smithRow">
+        <div class="cur">護甲<br><b id="smithACur">無</b></div>
+        <div class="nxt" id="smithANext">—</div>
+        <button class="upgBtn" id="smithABtn">升級</button>
+      </div>
+      <div class="smithMats">
+        <span>金幣 <b id="smithGold">0</b></span>
+        <span>銀礦石 <b id="smithOre">0</b></span>
+        <span>怪物皮 <b id="smithHide">0</b></span>
+        <span>夜泣塵 <b id="smithDust">0</b></span>
+      </div>
+      <div class="invHint">按 E / ESC 關閉　·　升級會即時套用</div>
+    </div>
+
+    <div id="prompt">Ｅ　對話</div>
+    <div id="toast"></div>
+    <div id="hurt"></div>
+  </div>
+
+  <div id="dialog" class="hidden">
+    <div class="dpanel">
+      <img id="dPortrait" class="dportrait" alt="">
+      <div class="dname" id="dName"></div>
+      <div class="dtext" id="dText"></div>
+      <div class="dopts" id="dOpts"></div>
+    </div>
+  </div>
+
+  <div id="epilogue" class="hidden">
+    <div class="ebox">
+      <div class="ek">尾聲 · EPILOGUE</div>
+      <h2 id="epiTitle">後日談</h2>
+      <div id="epiBody"></div>
+      <div class="efin" id="epiFinal"></div>
+      <div class="ego">按 <b>ENTER</b> 重新開始</div>
+    </div>
+  </div>
+  <div id="prologue" class="hidden">
+    <div class="pbox">
+      <div class="pk">霧沼 · 秋末 · 夜</div>
+      <div class="pline">「霧從河面爬上來，好像有人喺水底呼吸。」</div>
+      <div class="pline">「第三個失蹤嘅係漁夫嘅仔。村長話係沼屍。」</div>
+      <div class="pline">「但沼屍唔會留低銅匣——除非有人，帶佢哋入村。」</div>
+      <div class="pgo">按 <b>ENTER</b> 開始</div>
+    </div>
+  </div>
+
+  <div id="title">
+    <div class="tinner">
+      <div class="tkicker">SAMPLE · 路線 A · 本地 agent 實作</div>
+      <h1>灰狼<span>：</span>霧沼之獸</h1>
+      <div class="tsub">A dark-fantasy vertical slice · pure Canvas 2D</div>
+      <div class="tstart" id="titleStart">按 <b>ENTER</b> 開始</div>
+      <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
+      <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.6 · 46 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+    </div>
+  </div>
+
+  <div id="over" class="hidden">
+    <div class="tinner">
+      <div class="tkicker" id="overKicker">CONTRACT FULFILLED</div>
+      <h1 id="overTitle">委託完成</h1>
+      <div class="ostats" id="overStats"></div>
+      <div class="tstart">按 <b>ENTER</b> 重新開始</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   0. 基本設定
+   ========================================================= */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const VW = 1280, VH = 720;
+const W = 2600, H = 1700;
+
+const stage = document.getElementById('stage');
+function fit(){
+  const s = Math.min(innerWidth / VW, innerHeight / VH);
+  stage.style.transform = 'scale(' + s + ')';
+}
+addEventListener('resize', fit); fit();
+
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp  = (a,b,t)=>a+(b-a)*t;
+const dist  = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+const rand  = (a,b)=>a+Math.random()*(b-a);
+const pick  = arr=>arr[(Math.random()*arr.length)|0];
+const TAU = Math.PI*2;
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* =========================================================
+   1. 音效（極簡 WebAudio，首次互動後才啟動）
+   ========================================================= */
+const AudioFX = (function(){
+  let ac=null, muted=false;
+  let musicBus=null, padFilter=null, combatGain=null, bossGain=null, musicTimer=null, beatTimer=null, bossTimer=null;
+  let bossOn=false, bossRoot=55;
+  let intensity=0, targetIntensity=0;
+  function ensure(){ if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(ac&&ac.state==='suspended') ac.resume(); }
+  function noise(dur){
+    const n=Math.floor(ac.sampleRate*dur), buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const src=ac.createBufferSource(); src.buffer=buf; return src;
+  }
+  function tone(freq,dur,type,vol,slide){
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type||'sine'; o.frequency.value=freq;
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,slide), ac.currentTime+dur);
+    g.gain.value=vol||0.1;
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+dur);
+    o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+dur);
+  }
+
+  /* ---- 配樂：低音 drone + 五聲音階撥弦 + 戰鬥脈衝 ---- */
+  function ensureMusic(){
+    if(!ac || musicBus) return;
+    musicBus=ac.createGain(); musicBus.gain.value=0.9; musicBus.connect(ac.destination);
+    // drone
+    const padG=ac.createGain(); padG.gain.value=0.045;
+    padFilter=ac.createBiquadFilter(); padFilter.type='lowpass'; padFilter.frequency.value=240;
+    padG.connect(padFilter).connect(musicBus);
+    [55, 82.41].forEach((f,i)=>{
+      const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.detune.value=i?7:-6;
+      const g=ac.createGain(); g.gain.value=0.5; o.connect(g).connect(padG); o.start();
+    });
+    // wind noise loop
+    const n=Math.floor(ac.sampleRate*2), buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+    let last=0;
+    for(let i=0;i<n;i++){ last = last*0.98 + (Math.random()*2-1)*0.02; d[i]=last; }
+    const wind=ac.createBufferSource(); wind.buffer=buf; wind.loop=true;
+    const wf=ac.createBiquadFilter(); wf.type='bandpass'; wf.frequency.value=420; wf.Q.value=0.6;
+    const wg=ac.createGain(); wg.gain.value=0.35;
+    wind.connect(wf).connect(wg).connect(musicBus); wind.start();
+    // combat pulse bus
+    combatGain=ac.createGain(); combatGain.gain.value=0; combatGain.connect(musicBus);
+    bossGain=ac.createGain(); bossGain.gain.value=0; bossGain.connect(musicBus);
+    // sparse plucked notes
+    musicTimer=setInterval(()=>{
+      if(!ac||muted) return;
+      const scale=[110,130.81,146.83,164.81,196,220,261.63,293.66];
+      const f=scale[(Math.random()*scale.length)|0];
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.type='triangle'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.05, ac.currentTime+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+2.4);
+      o.connect(g).connect(musicBus); o.start(); o.stop(ac.currentTime+2.5);
+    }, 3200);
+    // combat heartbeat
+    beatTimer=setInterval(()=>{
+      if(!ac||muted || !combatGain) return;
+      if(intensity<0.08) return;
+      const t=ac.currentTime;
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(92,t); o.frequency.exponentialRampToValueAtTime(40,t+0.18);
+      g.gain.setValueAtTime(0.12*intensity+0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+      o.connect(g).connect(combatGain); o.start(t); o.stop(t+0.3);
+      if(intensity>0.55){
+        const s=noise(0.05), hg=ac.createGain(), hp=ac.createBiquadFilter();
+        hp.type='highpass'; hp.frequency.value=6000; hg.gain.value=0.04*intensity;
+        s.connect(hp).connect(hg).connect(combatGain); s.start();
+      }
+    }, 520);
+    // boss motif
+    bossTimer=setInterval(()=>{
+      if(!ac||muted||!bossOn||!bossGain) return;
+      const t=ac.currentTime;
+      [1,1.189,1.498].forEach((m)=>{
+        const o=ac.createOscillator(), g=ac.createGain(), lp=ac.createBiquadFilter();
+        o.type='sawtooth'; o.frequency.value=bossRoot*m;
+        lp.type='lowpass'; lp.frequency.value=620;
+        g.gain.setValueAtTime(0.0001,t);
+        g.gain.exponentialRampToValueAtTime(0.03,t+0.09);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+1.5);
+        o.connect(lp).connect(g).connect(bossGain); o.start(t); o.stop(t+1.6);
+      });
+      const k=ac.createOscillator(), kg=ac.createGain();
+      k.type='sine'; k.frequency.setValueAtTime(70,t); k.frequency.exponentialRampToValueAtTime(32,t+0.25);
+      kg.gain.setValueAtTime(0.14,t); kg.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
+      k.connect(kg).connect(bossGain); k.start(t); k.stop(t+0.45);
+    }, 1700);
+  }
+  function setBoss(on, root){
+    bossOn=!!on; if(root) bossRoot=root;
+    if(bossGain&&ac){ try{ bossGain.gain.setTargetAtTime(bossOn?0.55:0, ac.currentTime, 0.5); }catch(e){} }
+  }
+  function startMusic(){
+    if(!ac || musicBus) return;
+    try{ ensureMusic(); }catch(e){}
+  }
+  function setIntensity(v){
+    targetIntensity=Math.max(0,Math.min(1,v));
+    if(!combatGain||!ac) return;
+    intensity = intensity*0.8 + targetIntensity*0.2;
+    try{ combatGain.gain.setTargetAtTime(intensity*0.5, ac.currentTime, 0.4); }catch(e){}
+    if(padFilter){ try{ padFilter.frequency.setTargetAtTime(220+intensity*180, ac.currentTime, 1.2); }catch(e){} }
+  }
+
+  return {
+    setMuted(m){muted=m; if(musicBus&&ac){ try{ musicBus.gain.setTargetAtTime(m?0:0.9, ac.currentTime, 0.15); }catch(e){} }},
+    isMuted(){return muted;},
+    swing(){ if(!ac||muted)return; const s=noise(.08), f=ac.createBiquadFilter(), g=ac.createGain();
+      f.type='bandpass'; f.frequency.value=1800; g.gain.value=.12;
+      s.connect(f).connect(g).connect(ac.destination); s.start(); },
+    hit(){ if(!ac||muted)return; tone(90,.12,'sine',.22,40); const s=noise(.05),g=ac.createGain(); g.gain.value=.1; s.connect(g).connect(ac.destination); s.start(); },
+    hurt(){ if(!ac||muted)return; tone(70,.25,'sawtooth',.12,35); },
+    sign(){ if(!ac||muted)return; tone(320,.35,'sawtooth',.05,80); },
+    quen(){ if(!ac||muted)return; tone(520,.4,'sine',.05,700); },
+    coin(){ if(!ac||muted)return; tone(880,.08,'triangle',.06); setTimeout(()=>tone(1320,.12,'triangle',.05),70); },
+    die(){ if(!ac||muted)return; tone(120,.8,'sawtooth',.12,40); },
+    music(){ startMusic(); },
+    setIntensity,
+    setBoss,
+    init(){ ensure(); if(!(location.search||'').includes('test=1')) startMusic(); }
+  };
+})();
+
+
+/* =========================================================
+   2. 世界資料
+   ========================================================= */
+const pathPts = [[620,760],[780,800],[960,860],[1160,930],[1380,1000],[1600,1080],[1810,1160],[1990,1230]];
+const swamp = {x:2080,y:1335,rx:330,ry:215};
+
+const huts = [
+  {x:455,y:505,w:140,h:100,rot:-0.14},
+  {x:330,y:655,w:120,h:92,rot:0.10},
+  {x:620,y:430,w:126,h:96,rot:0.05},
+  {x:800,y:560,w:112,h:86,rot:-0.08}
+];
+const mill = {x:1955,y:1165,w:150,h:130};
+const nest  = {x:2095,y:1355,r:46};
+const fire  = {x:700,y:655};
+
+const props = [];
+const solids = [];
+const rng = mulberry32(20261114);
+
+function addProp(p){ props.push(p); }
+function addSolid(s){ solids.push(s); }
+
+// 村莊地面雜物
+for(const h of huts){
+  addProp({kind:'hut', x:h.x, y:h.y, w:h.w, h:h.h, rot:h.rot, seed:rng()*99});
+  addSolid({type:'rect', x:h.x-h.w/2, y:h.y-h.h/2, w:h.w, h:h.h});
+}
+addProp({kind:'mill', x:mill.x, y:mill.y, w:mill.w, h:mill.h});
+addSolid({type:'rect', x:mill.x-mill.w/2, y:mill.y-mill.h/2, w:mill.w, h:mill.h});
+addProp({kind:'nest', x:nest.x, y:nest.y, r:nest.r});
+addSolid({type:'circle', x:nest.x, y:nest.y, r:26});
+addProp({kind:'fire', x:fire.x, y:fire.y});
+addSolid({type:'circle', x:fire.x, y:fire.y, r:20});
+
+// 樹與石
+function nearPath(x,y,pad){
+  for(let i=0;i<pathPts.length-1;i++){
+    const a=pathPts[i], b=pathPts[i+1];
+    const dx=b[0]-a[0], dy=b[1]-a[1], L=dx*dx+dy*dy;
+    let t=((x-a[0])*dx+(y-a[1])*dy)/L; t=clamp(t,0,1);
+    if(Math.hypot(x-(a[0]+dx*t), y-(a[1]+dy*t)) < pad) return true;
+  }
+  return false;
+}
+function nearHut(x,y,pad){
+  for(const h of huts) if(Math.abs(x-h.x)<h.w/2+pad && Math.abs(y-h.y)<h.h/2+pad) return true;
+  if(Math.abs(x-mill.x)<mill.w/2+pad && Math.abs(y-mill.y)<mill.h/2+pad) return true;
+  if(Math.hypot(x-swamp.x,y-swamp.y) < swamp.rx+40) return true;
+  return false;
+}
+for(let i=0;i<230;i++){
+  const x=rng()*W, y=rng()*H;
+  if(nearPath(x,y,90)||nearHut(x,y,60)) continue;
+  if(Math.hypot(x-620,y-760)<230) continue;
+  const t=rng()<0.55?'pine':'oak';
+  const r=22+rng()*22;
+  addProp({kind:'tree', type:t, x, y, r, seed:rng()*100, sway:rng()*TAU});
+  addSolid({type:'circle', x, y:y+6, r:11});
+}
+for(let i=0;i<46;i++){
+  const x=rng()*W, y=rng()*H;
+  if(nearPath(x,y,70)||nearHut(x,y,50)) continue;
+  const r=10+rng()*20;
+  addProp({kind:'rock', x, y, r, seed:rng()*100});
+  addSolid({type:'circle', x, y:y+4, r:r*0.75});
+}
+// 蘆葦
+for(let i=0;i<160;i++){
+  const a=rng()*TAU, rr=Math.sqrt(rng());
+  const x=swamp.x+Math.cos(a)*swamp.rx*rr, y=swamp.y+Math.sin(a)*swamp.ry*rr;
+  addProp({kind:'reed', x, y, h:24+rng()*32, seed:rng()*100});
+}
+// 骨頭、路牌
+for(let i=0;i<26;i++){
+  addProp({kind:'bones', x:nest.x+rand(-90,90), y:nest.y+rand(-70,80), r:rand(4,9), rot:rand(0,TAU)});
+}
+addProp({kind:'signpost', x:720, y:700});
+
+// 墓園（夜泣出沒）與磨坊寶箱
+[[1235,880],[1310,925],[1170,980]].forEach(g=>{
+  addProp({kind:'grave', x:g[0], y:g[1]});
+  addSolid({type:'circle', x:g[0], y:g[1]+4, r:9});
+});
+addProp({kind:'chest', x:1876, y:1098});
+addSolid({type:'circle', x:1876, y:1102, r:12});
+
+/* ===== v0.3 地圖美化：村莊、墓園、沼澤 ===== */
+// 圍欄
+[[420,545,0],[420,585,0],[500,430,Math.PI/2],[760,470,0.2],[860,700,0],[330,760,0]].forEach(f=>{
+  addProp({kind:'fence', x:f[0], y:f[1], rot:f[2]});
+  addSolid({type:'circle', x:f[0], y:f[1]+2, r:9});
+});
+addProp({kind:'well', x:556, y:648});
+addSolid({type:'circle', x:556, y:654, r:18});
+addProp({kind:'cart', x:775, y:612, rot:0.45});
+addSolid({type:'circle', x:775, y:618, r:15});
+addProp({kind:'barrel', x:706, y:545});
+addProp({kind:'barrel', x:724, y:556});
+addSolid({type:'circle', x:715, y:552, r:9});
+addProp({kind:'hay', x:512, y:772});
+addProp({kind:'banner', x:604, y:498});
+// 路燈
+[[900,830],[1180,930],[1520,1030],[1760,1120]].forEach(p=>{
+  addProp({kind:'lantern', x:p[0], y:p[1]});
+  addSolid({type:'circle', x:p[0], y:p[1]+4, r:6});
+});
+// 神龕與額外墓碑
+addProp({kind:'shrine', x:1392, y:902});
+addSolid({type:'circle', x:1392, y:906, r:16});
+[[1460,858],[1420,986],[1502,932],[1360,960]].forEach(g=>{
+  addProp({kind:'grave', x:g[0], y:g[1]});
+  addSolid({type:'circle', x:g[0], y:g[1]+4, r:9});
+});
+// 廢墟石柱
+[[1840,1098],[2084,1082]].forEach(p=>{
+  addProp({kind:'pillar', x:p[0], y:p[1]});
+  addSolid({type:'circle', x:p[0], y:p[1]+4, r:12});
+});
+// 沼澤枯樹
+[[2205,1095],[2135,1505],[2285,1420],[2010,1510]].forEach(p=>{
+  addProp({kind:'deadtree', x:p[0], y:p[1]});
+  addSolid({type:'circle', x:p[0], y:p[1]+4, r:10});
+});
+// 草叢、花、菇
+for(let i=0;i<190;i++){
+  const x=rng()*W, y=rng()*H;
+  if(nearPath(x,y,30)) continue;
+  if(Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry)<1) continue;
+  const k = rng()<0.5?'bush':(rng()<0.6?'flower':'mushroom');
+  addProp({kind:k, x, y, seed:rng()*100, r:4+rng()*6});
+}
+// 委託板與支線場景（失蹤的補給車）
+addProp({kind:'board', x:690, y:744});
+addSolid({type:'circle', x:690, y:748, r:8});
+addProp({kind:'wreck', x:2250, y:1400, rot:0.5});
+addSolid({type:'circle', x:2250, y:1404, r:18});
+[[2190,1358],[2258,1478],[2338,1410]].forEach(c=>{
+  addProp({kind:'crate', x:c[0], y:c[1]});
+  addSolid({type:'circle', x:c[0], y:c[1]+2, r:9});
+});
+// 狼人支線：爪痕與巢穴
+[[980,700],[1060,760],[1120,640]].forEach(c=>addProp({kind:'claw', x:c[0], y:c[1], taken:false}));
+addProp({kind:'lair', x:1080, y:600});
+
+/* =========================================================
+   3. 地面預渲染
+   ========================================================= */
+const ground = document.createElement('canvas');
+ground.width=W; ground.height=H;
+(function paintGround(){
+  const g=ground.getContext('2d');
+  const grd=g.createLinearGradient(0,0,W,H);
+  grd.addColorStop(0,'#1c2a21'); grd.addColorStop(.5,'#1a261f'); grd.addColorStop(1,'#141f1c');
+  g.fillStyle=grd; g.fillRect(0,0,W,H);
+
+  // 大塊色斑
+  const r2=mulberry32(99);
+  for(let i=0;i<260;i++){
+    const x=r2()*W, y=r2()*H, rr=40+r2()*180;
+    g.fillStyle = r2()<.5 ? 'rgba(38,54,40,.20)' : 'rgba(12,18,16,.18)';
+    g.beginPath(); g.arc(x,y,rr,0,TAU); g.fill();
+  }
+  // 村莊空地
+  const vg=g.createRadialGradient(600,600,40,600,600,330);
+  vg.addColorStop(0,'rgba(72,60,42,.55)'); vg.addColorStop(1,'rgba(72,60,42,0)');
+  g.fillStyle=vg; g.beginPath(); g.arc(600,600,330,0,TAU); g.fill();
+
+  // 路
+  function drawPath(width,color,alpha){
+    g.strokeStyle=color; g.globalAlpha=alpha; g.lineWidth=width; g.lineCap='round'; g.lineJoin='round';
+    g.beginPath(); g.moveTo(pathPts[0][0],pathPts[0][1]);
+    for(let i=1;i<pathPts.length;i++){
+      const p=pathPts[i], q=pathPts[i-1];
+      const mx=(p[0]+q[0])/2, my=(p[1]+q[1])/2;
+      g.quadraticCurveTo(q[0],q[1],mx,my);
+    }
+    g.lineTo(pathPts[pathPts.length-1][0],pathPts[pathPts.length-1][1]);
+    g.stroke(); g.globalAlpha=1;
+  }
+  drawPath(104,'rgba(40,34,26,.8)',1);
+  drawPath(82,'rgba(66,56,42,.9)',1);
+  drawPath(58,'rgba(84,72,53,.72)',1);
+
+  // 泥土斑點
+  for(let i=0;i<1400;i++){
+    const t=r2(), idx=Math.min(pathPts.length-2, Math.floor(t*(pathPts.length-1)));
+    const a=pathPts[idx], b=pathPts[idx+1];
+    const k=r2();
+    const x=lerp(a[0],b[0],k)+rand(-60,60), y=lerp(a[1],b[1],k)+rand(-60,60);
+    g.fillStyle=r2()<.5?'rgba(120,102,74,.22)':'rgba(38,30,22,.25)';
+    g.beginPath(); g.arc(x,y,1+r2()*2.6,0,TAU); g.fill();
+  }
+
+  // 沼澤
+  const sw=g.createRadialGradient(swamp.x,swamp.y,20,swamp.x,swamp.y,swamp.rx);
+  sw.addColorStop(0,'rgba(22,42,36,.95)'); sw.addColorStop(.7,'rgba(20,36,30,.75)'); sw.addColorStop(1,'rgba(20,34,28,0)');
+  g.fillStyle=sw; g.beginPath(); g.ellipse(swamp.x,swamp.y,swamp.rx,swamp.ry,0,0,TAU); g.fill();
+  for(let i=0;i<70;i++){
+    const a=r2()*TAU, rr=Math.sqrt(r2());
+    const x=swamp.x+Math.cos(a)*swamp.rx*rr, y=swamp.y+Math.sin(a)*swamp.ry*rr;
+    g.fillStyle='rgba(64,96,80,.18)';
+    g.beginPath(); g.ellipse(x,y,20+r2()*60,6+r2()*16,0,0,TAU); g.fill();
+  }
+  // 水面反光
+  for(let i=0;i<40;i++){
+    const x=swamp.x+rand(-swamp.rx*.8,swamp.rx*.8), y=swamp.y+rand(-swamp.ry*.8,swamp.ry*.8);
+    g.strokeStyle='rgba(120,160,140,.10)'; g.lineWidth=1;
+    g.beginPath(); g.ellipse(x,y,6+r2()*18,2+r2()*4,0,0,TAU); g.stroke();
+  }
+
+  // 草
+  for(let i=0;i<5200;i++){
+    const x=r2()*W, y=r2()*H;
+    const inSwamp = Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry) < .95;
+    if(inSwamp) continue;
+    const h=2+r2()*5;
+    g.strokeStyle = r2()<.5 ? 'rgba(52,74,52,.5)' : 'rgba(30,46,34,.55)';
+    g.lineWidth=1;
+    g.beginPath(); g.moveTo(x,y); g.lineTo(x+rand(-2,2), y-h); g.stroke();
+  }
+  // 落葉
+  for(let i=0;i<700;i++){
+    const x=r2()*W, y=r2()*H;
+    g.fillStyle = r2()<.5?'rgba(96,70,40,.35)':'rgba(60,44,26,.3)';
+    g.beginPath(); g.ellipse(x,y,1.5+r2()*2.5,.8+r2()*1.4,r2()*TAU,0,TAU); g.fill();
+  }
+  // 環境遮蔽（樹、石、屋、井、車、石柱下的暗影）
+  for(const p of props){
+    let rr=0;
+    if(p.kind==='tree') rr=p.r*1.15;
+    else if(p.kind==='rock') rr=p.r*1.2;
+    else if(p.kind==='hut') rr=p.w*.60;
+    else if(p.kind==='mill') rr=p.w*.62;
+    else if(p.kind==='well'||p.kind==='cart') rr=30;
+    else if(p.kind==='pillar'||p.kind==='deadtree') rr=20;
+    else if(p.kind==='shrine') rr=26;
+    if(!rr) continue;
+    const a=g.createRadialGradient(p.x,p.y+4,rr*.2,p.x,p.y+4,rr);
+    a.addColorStop(0,'rgba(0,0,0,.28)'); a.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=a; g.beginPath(); g.ellipse(p.x,p.y+4,rr,rr*.55,0,0,TAU); g.fill();
+  }
+})();
+
+/* =========================================================
+   4. 狀態
+   ========================================================= */
+const G = {
+  mode:'title',
+  time:0, tScale:1, shake:0, hitStop:0, rain:0.55,
+  gold:0, xp:0, level:1, kills:0,
+  quest:0,                 // 0..10，流程見 story.js 註解
+  story:{truth:null, seal:null, hunterMet:false, locketFound:false, shrineDone:false},
+  side:{stage:0, cr:0, bogcrone:false},   // 支線：失蹤的補給車
+  were:{stage:0, marks:0, outcome:null}, // 支線：狼人詛咒
+  dialog:null, toastTimer:0, bossOn:false, helped:false,
+  saveTimer:0, journal:false, prologue:false,
+  clickFx:[], minimapT:0, music:0, useDirs:true, _bossMusic:false, transform:null, flash:0
+};
+
+const player = {
+  x:640, y:790, r:15, vx:0, vy:0,
+  hp:120, maxHp:120, stam:100, maxStam:100,
+  facing:-Math.PI/2, speed:215, sprint:305,
+  atk:null, atkCd:0, combo:0, dodge:0, dodgeCd:0,
+  iframe:0, shield:0, potions:3, potionHeal:0,
+  hurtFlash:0, dead:false, walk:0,
+  bonusDmg:0, dmgMul:1,
+  moveTo:null, target:null, pending:null, lastClick:0, moving:false,
+  buffs:{wispOil:0},
+  gear:{weapon:0, armor:0},
+  mats:{ore:0, hide:0, dust:0},
+  inv:{sword:null, armor:null, trophies:{}, fishOil:0}
+};
+
+let npcs = [];
+let enemies = [];
+let projectiles = [];
+let particles = [];
+let texts = [];
+let decals = [];
+let fogs = [];
+let flies = [];
+
+const signs = {
+  igni:{cd:0, max:6.0, cost:26, label:'炎印'},
+  aard:{cd:0, max:5.0, cost:22, label:'震印'},
+  quen:{cd:0, max:10.0, cost:28, label:'盾印'}
+};
+
+/* ---- 裝備 / 素材 ---- */
+const ITEMS = {
+  silver_sword:{name:'銀刃', kind:'sword', desc:'對怪物傷害 +10'},
+  wolf_armor:{name:'狼紋護甲', kind:'armor', desc:'生命上限 +30'},
+  wisp_essence:{name:'夜泣精華', kind:'trophy'},
+  bogdweller_heart:{name:'沼屍之心', kind:'trophy'},
+  locket:{name:'莉婭的銅匣', kind:'quest', desc:'漁夫亡妻的遺物'},
+  amulet:{name:'家族銀墜', kind:'amulet', desc:'傷害 +10%'},
+  fish_oil:{name:'魚油膏', kind:'consumable'},
+  heart:{name:'夜泣之心', kind:'quest'},
+  oil:{name:'夜泣油', kind:'oil', desc:'對夜泣傷害 +50%（3 分鐘）'},
+  ore:{name:'銀礦石', kind:'material'},
+  hide:{name:'怪物皮', kind:'material'},
+  dust:{name:'夜泣塵', kind:'material'},
+  supply:{name:'補給箱', kind:'quest'}
+};
+
+/* ---- 裝備升級樹 ---- */
+const WEAPONS = [
+  {name:'空手',        dmg:0,  desc:'赤手空拳'},
+  {name:'銀刃',    dmg:10, desc:'對怪物傷害 +10'},
+  {name:'狼紋銀刃',    dmg:18, desc:'傷害 +18',   cost:{gold:120, ore:2, hide:1}},
+  {name:'大師銀刃',    dmg:30, desc:'傷害 +30',   cost:{gold:260, ore:3, dust:2}}
+];
+const ARMORS = [
+  {name:'無',          hp:0,   desc:'布衣'},
+  {name:'狼紋護甲',  hp:30,  desc:'生命上限 +30'},
+  {name:'強化狼甲',    hp:60,  desc:'生命上限 +60', cost:{gold:100, hide:2}},
+  {name:'大師狼甲',    hp:100, desc:'生命上限 +100', cost:{gold:240, ore:2, dust:2}}
+];
+function weaponDef(){ return WEAPONS[player.gear.weapon] || WEAPONS[0]; }
+function armorDef(){ return ARMORS[player.gear.armor] || ARMORS[0]; }
+function hasMats(cost){
+  if(!cost) return false;
+  if(G.gold < (cost.gold||0)) return false;
+  if((cost.ore||0) > player.mats.ore) return false;
+  if((cost.hide||0) > player.mats.hide) return false;
+  if((cost.dust||0) > player.mats.dust) return false;
+  return true;
+}
+function payMats(cost){
+  if(!cost) return;
+  G.gold -= (cost.gold||0);
+  player.mats.ore -= (cost.ore||0);
+  player.mats.hide -= (cost.hide||0);
+  player.mats.dust -= (cost.dust||0);
+}
+function applyGear(){
+  const w=weaponDef(), a=armorDef();
+  player.bonusDmg = w.dmg;
+  const lvlHp = (G.level-1)*12;
+  const newMax = 120 + a.hp + lvlHp;
+  const diff = newMax - player.maxHp;
+  player.maxHp = newMax;
+  if(diff > 0) player.hp = Math.min(newMax, player.hp + diff);
+  else player.hp = Math.min(player.hp, newMax);
+  updateHUD();
+}
+function upgradeGear(kind){
+  const arr = kind==='weapon' ? WEAPONS : ARMORS;
+  const tier = kind==='weapon' ? player.gear.weapon : player.gear.armor;
+  const next = arr[tier+1];
+  if(!next || !next.cost) return {ok:false, msg:'已達最高階'};
+  if(!hasMats(next.cost)) return {ok:false, msg:'材料或金幣不足'};
+  payMats(next.cost);
+  if(kind==='weapon') player.gear.weapon++; else player.gear.armor++;
+  applyGear();
+  saveGame();
+  return {ok:true, msg:'升級：'+next.name};
+}
+let loot = [];
+let chestOpened = false;
+const chestPos = {x:1876, y:1098};
+const shrinePos = {x:1392, y:902};
+let shrineActive = false;
+let tombwraithSpawned = false;
+
+/* ---- 圖像素材（存在就用，唔存在就 fallback 程式繪圖） ---- */
+const ASSETS = {};
+function loadAsset(key, src){
+  try{
+    const im = new Image();
+    im.onload = ()=>{ ASSETS[key]=im; };
+    im.onerror = ()=>{};
+    im.src = src;
+  }catch(e){}
+}
+[['hero','assets/characters/hero.png'],
+ ['bogdweller','assets/characters/bogdweller.png'],
+ ['gnawer','assets/characters/gnawer.png'],
+ ['bogcrone','assets/characters/bogcrone.png'],
+ ['wisp','assets/characters/wisp.png'],
+ ['elder','assets/characters/elder.png'],
+ ['fisherman','assets/characters/fisherman.png'],
+ ['hunter','assets/characters/hunter.png'],
+ ['tombwraith','assets/characters/tombwraith.png'],
+ ['blacksmith','assets/characters/blacksmith.png'],
+ ['husband','assets/characters/husband.png'],
+ ['p_hero','assets/portraits/hero.png'],
+ ['p_elder','assets/portraits/elder.png'],
+ ['p_fisherman','assets/portraits/fisherman.png'],
+ ['p_hunter','assets/portraits/hunter.png'],
+ ['p_blacksmith','assets/portraits/blacksmith.png']
+].forEach(a=>loadAsset(a[0],a[1]));
+for(let i=0;i<8;i++){
+  for(let f=0;f<2;f++) loadAsset('dir'+i+'_'+f, 'assets/dir/hero_'+i+'_'+f+'.png');
+  loadAsset('dir'+i, 'assets/dir/hero_'+i+'.png');
+}
+
+/* ---- 支線座標 ---- */
+const boardPos = {x:690, y:744};
+const clawPos = [[980,700],[1060,760],[1120,640]];
+const wereLair = {x:1080, y:600};
+const sideHagPos = {x:2330, y:1465};
+const sideCrates = [[2190,1358],[2258,1478],[2338,1410]];
+
+const SAVE_KEY = 'greywolf_save_v1';
+let memSave = null;
+
+
+/* =========================================================
+   5. 生成 / 重設
+   ========================================================= */
+function makeNPC(id, name, x, y, color){
+  return {kind:'npc', id, name, x, y, r:14, color, facing:Math.PI/2, talk:0};
+}
+
+function spawnEnemy(type, x, y){
+  const base = {
+    bogdweller:{hp:36, maxHp:36, speed:118, dmg:8, range:52, windup:.46, cd:1.0, xp:22, name:'沼屍'},
+    gnawer:{hp:48, maxHp:48, speed:142, dmg:11, range:48, windup:.38, cd:.9, xp:30, name:'食骸鬼'},
+    wisp:{hp:58, maxHp:58, speed:150, dmg:12, range:50, windup:.42, cd:1.05, xp:38, name:'夜泣'},
+    bogcrone:{hp:230, maxHp:230, speed:88, dmg:17, range:70, windup:.62, cd:1.3, xp:140, name:'沼婆'},
+    tombwraith:{hp:430, maxHp:430, speed:92, dmg:20, range:78, windup:.72, cd:1.4, xp:260, name:'墓中夜泣'},
+    werewolf:{hp:320, maxHp:320, speed:168, dmg:18, range:62, windup:.44, cd:1.0, xp:220, name:'狼人'}
+  }[type];
+  const e = Object.assign({
+    kind:'enemy', type, x, y, r: (type==='bogcrone'||type==='tombwraith')?22:14,
+    hp:base.hp, maxHp:base.maxHp, speed:base.speed, dmg:base.dmg,
+    range:base.range, windup:base.windup, cdMax:base.cd, xp:base.xp, name:base.name,
+    state:'idle', t:0, cd:0, stun:0, burn:0, slow:0,
+    facing:0, flash:0, deadT:0, hitDone:false, aggro:false,
+    rangedCd: rand(1.5,3), summoned:false, seed:Math.random()*99,
+    uid:'', blinkCd: rand(1.5,3)
+  }, {});
+  e.act1 = (type==='bogdweller'||type==='gnawer'||type==='bogcrone');
+  e.isWraith = (type==='wisp'||type==='tombwraith');
+  return e;
+}
+
+function resetGame(){
+  player.x=640; player.y=790; player.maxHp=120; player.hp=120; player.stam=player.maxStam;
+  player.atk=null; player.atkCd=0; player.dodge=0; player.dodgeCd=0;
+  player.iframe=0; player.shield=0; player.potions=3; player.potionHeal=0; player.dead=false;
+  player.facing=-Math.PI/2; player.bonusDmg=0; player.dmgMul=1;
+  player.moveTo=null; player.target=null; player.pending=null;
+  player.buffs={wispOil:0};
+  player.inv={sword:null, armor:null, trophies:{}, fishOil:0};
+
+  G.gold=0; G.xp=0; G.level=1; G.kills=0; G.quest=0; G.dialog=null; G.bossOn=false; G.helped=false;
+  G.toastTimer=0; G.shake=0; G.hitStop=0; G.saveTimer=0; G.rain=0.55; G.clickFx=[]; G.music=0;
+  G.story={truth:null, seal:null, hunterMet:false, locketFound:false, shrineDone:false};
+  G.side={stage:0, cr:0, bogcrone:false};
+  G.were={stage:0, marks:0, outcome:null};
+  for(const p of props){ if(p.kind==='claw') p.taken=false; }
+
+  player.gear={weapon:0, armor:0};
+  player.mats={ore:0, hide:0, dust:0};
+  applyGear();
+
+  npcs = [
+    makeNPC('elder','村長', 648, 592, '#8a6a3f'),
+    makeNPC('fisher','漁夫', 812, 712, '#4c6a72'),
+    makeNPC('hunter','獵人 米爾', 1088, 842, '#4a5a3a'),
+    makeNPC('smith','鐵匠 老莫', 585, 806, '#6b4a32'),
+    makeNPC('widow','寡婦 艾蓮', 742, 786, '#5a4a6a')
+  ];
+
+  enemies = [
+    spawnEnemy('gnawer', 1150, 950),
+    spawnEnemy('gnawer', 1245, 1015),
+    spawnEnemy('wisp', 1235, 900),
+    spawnEnemy('wisp', 1310, 945),
+    spawnEnemy('wisp', 1170, 1000)
+  ];
+  const horde = [
+    [1920,1270],[1990,1310],[2060,1250],[2120,1300],[2030,1400],[2170,1370]
+  ];
+  for(const p of horde) enemies.push(spawnEnemy('bogdweller', p[0], p[1]));
+  enemies.push(spawnEnemy('bogcrone', nest.x+10, nest.y-30));
+  const counter={};
+  for(const e of enemies){ counter[e.type]=(counter[e.type]||0)+1; e.uid=e.type+'_'+counter[e.type]; }
+
+  loot=[]; chestOpened=false; shrineActive=false; tombwraithSpawned=false;
+  projectiles=[]; particles=[]; texts=[]; decals=[];
+  signs.igni.cd=0; signs.aard.cd=0; signs.quen.cd=0;
+
+  fogs=[]; for(let i=0;i<18;i++){
+    fogs.push({x:rand(0,W), y:rand(0,H), r:rand(180,420), a:rand(.025,.07), vx:rand(-6,10), vy:rand(-3,3)});
+  }
+  flies=[]; for(let i=0;i<38;i++){
+    flies.push({x:rand(swamp.x-300,swamp.x+300), y:rand(swamp.y-200,swamp.y+200), t:rand(0,10), s:rand(.4,1.1)});
+  }
+  for(const h of huts) decals.push({type:'shadow', x:h.x, y:h.y, r:h.w*.62});
+  updateQuestUI();
+  updateHUD();
+}
+
+/* =========================================================
+   6. 輸入
+   ========================================================= */
+const keys={};
+const mouse={x:VW/2, y:VH/2, left:false, right:false};
+
+addEventListener('keydown', e=>{
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  keys[e.code]=true;
+  AudioFX.init();
+  if(e.code==='Enter'){
+    if(G.mode==='title'){ startGame(false); }
+    else if(G.mode==='prologue'){ endPrologue(); }
+    else if(G.mode==='win'){ showEpilogue(); }
+    else if(G.mode==='epilogue'){ clearSave(); startGame(true); }
+    else if(G.mode==='dead'){ retryFromSave(); }
+  }
+  if(G.mode==='title' && e.code==='KeyN'){ clearSave(); startGame(true); }
+  if(G.mode==='play'){
+    if(e.code==='Digit1') castSign('igni');
+    if(e.code==='Digit2') castSign('aard');
+    if(e.code==='Digit3') castSign('quen');
+    if(e.code==='KeyE') interact();
+    if(e.code==='KeyR') drinkPotion();
+    if(e.code==='KeyI') toggleInventory();
+    if(e.code==='KeyJ') toggleJournal();
+    if(e.code==='KeyM'){ AudioFX.setMuted(!AudioFX.isMuted()); toast(AudioFX.isMuted()?'音效：關':'音效：開'); }
+  }
+  if(G.mode==='inventory'){
+    if(e.code==='KeyI'||e.code==='Escape') toggleInventory();
+  }
+  if(G.mode==='journal'){
+    if(e.code==='KeyJ'||e.code==='Escape') toggleJournal();
+  }
+  if(G.mode==='smith'){
+    if(e.code==='Escape'||e.code==='KeyE') closeSmith();
+  }
+  if(G.mode==='dialog'){
+    if(e.code>='Digit1'&&e.code<='Digit4') chooseOption(+e.code.slice(-1)-1);
+    if(e.code==='Escape') closeDialog();
+  }
+});
+addEventListener('keyup', e=>{ keys[e.code]=false; });
+
+cv.addEventListener('mousemove', e=>{
+  const r=cv.getBoundingClientRect();
+  mouse.x=(e.clientX-r.left)*(VW/r.width);
+  mouse.y=(e.clientY-r.top)*(VH/r.height);
+});
+cv.addEventListener('mousedown', e=>{
+  AudioFX.init();
+  if(G.mode!=='play') return;
+  const w=screenToWorld(mouse.x, mouse.y);
+  if(e.button===0){
+    mouse.left=true;
+    const now=performance.now();
+    if(now-player.lastClick<300 && player.dodgeCd<=0 && player.stam>12){
+      player.lastClick=0; dodgeToward(w.x,w.y); return;
+    }
+    player.lastClick=now;
+    mouseAction(1, w);
+  }
+  if(e.button===2){ mouse.right=true; mouseAction(2, w); }
+});
+cv.addEventListener('mouseup', e=>{ if(e.button===0)mouse.left=false; if(e.button===2)mouse.right=false; });
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+
+/* HUD 按鈕（滑鼠） */
+document.querySelectorAll('.sign').forEach(el=>{
+  el.style.pointerEvents='auto'; el.style.cursor='pointer';
+  el.addEventListener('click', ()=>{ if(G.mode==='play') castSign(el.dataset.sign); });
+});
+document.getElementById('smithWBtn').addEventListener('click',()=>doUpgrade('weapon'));
+document.getElementById('smithABtn').addEventListener('click',()=>doUpgrade('armor'));
+document.querySelectorAll('.abtn').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    const a=el.dataset.act;
+    if(a==='inventory' && G.mode==='inventory'){ toggleInventory(); return; }
+    if(a==='journal' && G.mode==='journal'){ toggleJournal(); return; }
+    if(G.mode!=='play') return;
+    if(a==='potion') drinkPotion();
+    else if(a==='inventory') toggleInventory();
+    else if(a==='journal') toggleJournal();
+  });
+});
+
+/* ---- 滑鼠操作 ---- */
+function screenToWorld(sx,sy){ return {x:sx+cam.x, y:sy+cam.y}; }
+function faceTo(x,y){ player.facing=Math.atan2(y-player.y, x-player.x); }
+function pickEnemy(wx,wy){
+  let best=null, bd=44;
+  for(const e of enemies){
+    if(e.state==='dead') continue;
+    const d=Math.hypot(e.x-wx, e.y-wy-e.r*0.5);
+    if(d<bd){ bd=d; best=e; }
+  }
+  return best;
+}
+function pickNPC(wx,wy){
+  for(const n of npcs){ if(Math.hypot(n.x-wx, n.y-wy)<40) return n; }
+  return null;
+}
+function pickLoot(wx,wy){
+  for(const l of loot){ if(Math.hypot(l.x-wx, l.y-wy)<38) return l; }
+  return null;
+}
+function mouseAction(button, w){
+  if(player.dead) return;
+  if(button===2){
+    const t = (player.target && player.target.state!=='dead') ? player.target : w;
+    faceTo(t.x,t.y); attack('strong'); return;
+  }
+  const e=pickEnemy(w.x,w.y);
+  if(e){
+    player.target=e; player.moveTo=null; player.pending=null;
+    faceTo(e.x,e.y);
+    if(Math.hypot(e.x-player.x,e.y-player.y) <= 108) attack('fast');
+    return;
+  }
+  const L=pickLoot(w.x,w.y);
+  if(L){ player.pending={kind:'loot', ref:L}; player.target=null; player.moveTo={x:L.x,y:L.y}; return; }
+  const N=pickNPC(w.x,w.y);
+  if(N){ player.pending={kind:'npc', ref:N}; player.target=null; player.moveTo={x:N.x,y:N.y}; return; }
+  const cr=props.find(p=>p.kind==='crate' && !p.taken && G.side.stage===1 && Math.hypot(p.x-w.x,p.y-w.y)<42);
+  if(cr){ player.pending={kind:'crate', ref:cr}; player.target=null; player.moveTo={x:cr.x,y:cr.y+40}; return; }
+  const clawP=props.find(p=>p.kind==='claw' && !p.taken && G.were.stage===1 && Math.hypot(p.x-w.x,p.y-w.y)<42);
+  if(clawP){ player.pending={kind:'claw', ref:clawP}; player.target=null; player.moveTo={x:clawP.x, y:clawP.y+38}; return; }
+  if(Math.hypot(boardPos.x-w.x, boardPos.y-w.y)<48){
+    player.pending={kind:'board'}; player.target=null; player.moveTo={x:boardPos.x, y:boardPos.y+46}; return;
+  }
+  if(!chestOpened && Math.hypot(chestPos.x-w.x, chestPos.y-w.y)<42){
+    player.pending={kind:'chest'}; player.target=null; player.moveTo={x:chestPos.x, y:chestPos.y+52}; return;
+  }
+  if(G.quest===6 && Math.hypot(shrinePos.x-w.x, shrinePos.y-w.y)<52){
+    player.pending={kind:'shrine'}; player.target=null; player.moveTo={x:shrinePos.x, y:shrinePos.y+56}; return;
+  }
+  player.target=null; player.pending=null;
+  player.moveTo={x:clamp(w.x,24,W-24), y:clamp(w.y,24,H-24)};
+  G.clickFx.push({x:player.moveTo.x, y:player.moveTo.y, t:0});
+  if(G.clickFx.length>6) G.clickFx.shift();
+}
+function dodgeToward(tx,ty){
+  if(player.dodgeCd>0||player.stam<12||player.dodge>0) return;
+  player.stam-=18; player.dodge=.22; player.dodgeCd=.75;
+  player.dodgeAng=Math.atan2(ty-player.y, tx-player.x);
+  player.iframe=.28; player.moveTo=null;
+  for(let i=0;i<10;i++) spawnParticle(player.x,player.y+6,rand(-60,60),rand(-30,10),.35,rand(1,3),'rgba(140,140,130,.4)',0);
+}
+function tryPending(){
+  const p=player.pending; if(!p) return;
+  if(p.kind==='npc'){
+    const n=p.ref;
+    if(dist(player,n)<84){
+      player.pending=null;
+      if(n.id==='elder') elderDialog();
+      else if(n.id==='fisher') fisherDialog();
+      else if(n.id==='smith') openSmith();
+      else if(n.id==='widow') widowDialog();
+      else if(n.id==='husband') husbandDialog();
+      else hunterDialog();
+    }
+  } else if(p.kind==='loot'){
+    const l=p.ref;
+    if(!loot.includes(l)) { player.pending=null; return; }
+    if(dist(player,l)<84){ player.pending=null; pickupLoot(l); }
+  } else if(p.kind==='crate'){
+    const c=p.ref;
+    if(!c.taken && dist(player,c)<82){ player.pending=null; pickupCrate(c); }
+  } else if(p.kind==='claw'){
+    const c=p.ref;
+    if(!c.taken && dist(player,c)<80){ player.pending=null; clawInteract(c); }
+  } else if(p.kind==='board'){
+    if(dist(player,boardPos)<92){ player.pending=null; boardInteract(); }
+  } else if(p.kind==='chest'){
+    if(!chestOpened && dist(player,chestPos)<100){ player.pending=null; openChest(); }
+    else if(chestOpened) player.pending=null;
+  } else if(p.kind==='shrine'){
+    if(dist(player,shrinePos)<100){ player.pending=null; shrineInteract(); }
+  }
+}
+
+/* =========================================================
+   7. 幾何 / 碰撞
+   ========================================================= */
+function resolveCircle(x,y,r){
+  let px=x, py=y;
+  for(const s of solids){
+    if(s.type==='circle'){
+      const dx=px-s.x, dy=py-s.y, d=Math.hypot(dx,dy), min=r+s.r;
+      if(d<min && d>0.001){ px=s.x+dx/d*min; py=s.y+dy/d*min; }
+      else if(d<=0.001){ px=s.x+min; }
+    } else {
+      const cx=clamp(px, s.x, s.x+s.w), cy=clamp(py, s.y, s.y+s.h);
+      const dx=px-cx, dy=py-cy, d=Math.hypot(dx,dy);
+      if(d<r){
+        if(d>0.001){ px=cx+dx/d*r; py=cy+dy/d*r; }
+        else {
+          const left=px-s.x, right=s.x+s.w-px, top=py-s.y, bot=s.y+s.h-py;
+          const m=Math.min(left,right,top,bot);
+          if(m===left) px=s.x-r; else if(m===right) px=s.x+s.w+r;
+          else if(m===top) py=s.y-r; else py=s.y+s.h+r;
+        }
+      }
+    }
+  }
+  return {x:px,y:py};
+}
+function inWater(x,y){
+  return Math.hypot((x-swamp.x)/swamp.rx,(y-swamp.y)/swamp.ry) < .92;
+}
+
+/* =========================================================
+   8. 戰鬥
+   ========================================================= */
+function angDiff(a,b){
+  let d=(a-b)%TAU;
+  if(d>Math.PI) d-=TAU;
+  if(d<-Math.PI) d+=TAU;
+  return d;
+}
+function attack(kind){
+  if(G.mode!=='play'||player.dead) return;
+  if(player.atkCd>0||player.dodge>0||player.atk&&player.atk.t<player.atk.dur) return;
+  const strong = kind==='strong';
+  const cost = strong?22:12;
+  if(player.stam<cost) return;
+  player.stam-=cost;
+  const arc = strong?1.5:1.9;
+  const range = strong?96:80;
+  player.atk={kind, t:0, dur:strong?.62:.42, hitAt:strong?.30:.14, hit:false, arc, range};
+  player.atkCd=strong?.72:.40;
+  player.combo=(player.combo+1)%3;
+  AudioFX.swing();
+  if(inWater(player.x,player.y)){ player.atk.dur*=1.15; }
+}
+function applyAttackHit(atk){
+  const range=atk.range, half=atk.arc/2;
+  for(const e of enemies){
+    if(e.state==='dead') continue;
+    const d=dist(player,e);
+    if(d>range+e.r) continue;
+    const ang=Math.atan2(e.y-player.y, e.x-player.x);
+    if(Math.abs(angDiff(ang,player.facing))>half) continue;
+    let dmg = (atk.kind==='strong'?27:14) + player.bonusDmg;
+    dmg *= (player.dmgMul||1);
+    if(e.isWraith && player.buffs.wispOil>0) dmg *= 1.5;
+    dmg *= rand(.92,1.08);
+    hitEnemy(e, dmg, atk.kind==='strong'?260:120, ang);
+    if(atk.kind==='strong'){ e.stun=Math.max(e.stun,.35); }
+  }
+}
+function hitEnemy(e, dmg, kb, ang){
+  if(e.state==='dead') return;
+  if(e.type==='wisp' && dmg<100 && Math.random()<0.22){
+    floatText(e.x, e.y-e.r*1.7, '閃避', '#a8c8e0');
+    e.flash=.06;
+    return;
+  }
+  e.hp-=dmg;
+  e.flash=.12;
+  e.aggro=true;
+  e.x+=Math.cos(ang)*Math.min(26,kb*.06);
+  e.y+=Math.sin(ang)*Math.min(26,kb*.06);
+  spawnBlood(e.x,e.y-e.r*.4,ang);
+  floatText(e.x, e.y-e.r*1.7, Math.round(dmg), '#f3d9a0');
+  G.hitStop=.045; G.shake=Math.max(G.shake,4);
+  AudioFX.hit();
+  if(e.hp<=0) killEnemy(e);
+}
+function killEnemy(e){
+  e.state='dead'; e.deadT=0; G.kills++; G.xp+=e.xp;
+  floatText(e.x,e.y-e.r*2, '+'+e.xp+' XP', '#c8a24a');
+  if(e.type==='wisp'){
+    player.inv.trophies.wisp_essence=(player.inv.trophies.wisp_essence||0)+1;
+    player.mats.dust+=1;
+    floatText(e.x,e.y-44,'夜泣精華 ×1　夜泣塵 ×1','#a8c8e0');
+    for(let i=0;i<20;i++) spawnParticle(e.x,e.y-16,rand(-70,70),rand(-110,10),rand(.4,1),rand(1,3),'rgba(170,210,240,.7)',30,true);
+  }
+  if(e.type==='bogdweller'||e.type==='gnawer'){
+    player.mats.hide+=1;
+  }
+  if(e.type==='bogcrone'){
+    player.mats.hide+=2;
+    if(e.side){
+      G.side.bogcrone=true;
+      floatText(e.x,e.y-52,'補給路線已清空','#c8a24a');
+      checkSide();
+    } else {
+      loot.push({x:e.x+24,y:e.y+8,item:'silver_sword',bob:Math.random()*6});
+      loot.push({x:e.x-24,y:e.y+16,item:'locket',bob:Math.random()*6});
+      player.mats.ore+=1;
+    }
+  }
+  if(e.type==='werewolf'){
+    G.were.outcome='killed'; G.were.stage=3;
+    player.mats.hide+=2;
+    toast('狼人已死','回去告訴寡婦');
+    updateQuestUI();
+  }
+  if(e.type==='tombwraith'){
+    loot.push({x:e.x,y:e.y+20,item:'heart',bob:0});
+    player.mats.dust+=3;
+    G.quest=8;
+    toast('墓中夜泣已倒下','拾起夜泣之心，回去找村長');
+    updateQuestUI();
+  }
+  saveGame();
+  if(e.type==='bogcrone' && !e.side){
+    G.bossOn=false; document.getElementById('bossbar').classList.remove('on');
+    floatText(e.x,e.y-60,'沼婆倒下了','#f0d9a0');
+    G.shake=18;
+    for(let i=0;i<30;i++) spawnParticle(e.x,e.y-20,rand(-160,160),rand(-160,80),rand(.5,1.4),rand(2,5),'rgba(120,200,160,.8)',40,true);
+  }
+  if(e.type==='tombwraith'){
+    G.bossOn=false; document.getElementById('bossbar').classList.remove('on');
+    G.shake=26;
+    for(let i=0;i<70;i++) spawnParticle(e.x,e.y-20,rand(-220,220),rand(-220,120),rand(.6,1.8),rand(2,7),'rgba(150,205,245,.85)',50,true);
+  }
+  checkLevel();
+  checkQuestKills();
+}
+function checkLevel(){
+  const need = 90 + (G.level-1)*120;
+  if(G.xp>=need){
+    G.xp-=need; G.level++;
+    applyGear();
+    player.hp=Math.min(player.maxHp, player.hp+34);
+    toast('等級提升','LV '+G.level+'　生命上限 +12');
+    for(let i=0;i<26;i++) spawnParticle(player.x,player.y-10,rand(-60,60),rand(-120,-20),rand(.6,1.2),rand(2,4),'rgba(232,201,116,.9)',20,true);
+  }
+  updateHUD();
+}
+
+function hurtPlayer(dmg, fromX, fromY){
+  if(player.dead||G.mode!=='play') return;
+  if(player.iframe>0) return;
+  if(player.shield>0){
+    player.shield=0;
+    floatText(player.x,player.y-34,'盾印吸收','#d8c27a');
+    AudioFX.quen();
+    player.iframe=.4;
+    return;
+  }
+  player.hp-=dmg;
+  player.iframe=.55;
+  player.hurtFlash=.6;
+  G.shake=Math.max(G.shake,9);
+  AudioFX.hurt();
+  const a=Math.atan2(player.y-fromY, player.x-fromX);
+  player.x+=Math.cos(a)*16; player.y+=Math.sin(a)*16;
+  const h=document.getElementById('hurt'); h.style.opacity=.9; setTimeout(()=>h.style.opacity=0,140);
+  spawnBlood(player.x,player.y-10,a);
+  updateHUD();
+  if(player.hp<=0){ player.hp=0; playerDie(); }
+}
+function playerDie(){
+  player.dead=true; G.mode='dead'; AudioFX.die();
+  document.getElementById('overKicker').textContent='YOU DIED';
+  document.getElementById('overTitle').textContent='你死了';
+  document.getElementById('overStats').innerHTML='霧沼的霧吞沒了灰狼。<br>按 ENTER 由最近存檔重試。';
+  const tspan=document.querySelector('#over .tstart'); if(tspan) tspan.innerHTML='按 <b>ENTER</b> 由最近存檔重試';
+  document.getElementById('over').classList.remove('hidden');
+}
+function drinkPotion(){
+  if(player.hp>=player.maxHp){ toast('生命已滿'); return; }
+  if(player.potions>0){
+    player.potions--; player.potionHeal=4.0;
+    floatText(player.x,player.y-40,'獵草藥水','#7fc78a');
+    AudioFX.quen(); updateHUD(); return;
+  }
+  if(player.inv.fishOil>0){
+    player.inv.fishOil--; player.hp=Math.min(player.maxHp, player.hp+60);
+    floatText(player.x,player.y-40,'魚油膏 +60','#e8c974');
+    AudioFX.quen(); updateHUD(); return;
+  }
+  toast('沒有藥水了');
+}
+
+/* ---- 法印 ---- */
+function castSign(name){
+  const s=signs[name];
+  if(G.mode!=='play'||player.dead||s.cd>0) return;
+  if(player.stam<s.cost){ toast('精力不足'); return; }
+  player.stam-=s.cost; s.cd=s.max;
+  AudioFX.sign();
+  if(name==='igni'){
+    G.shake=Math.max(G.shake,5);
+    for(let i=0;i<46;i++){
+      const a=player.facing+rand(-.5,.5), sp=rand(120,420);
+      spawnParticle(player.x+Math.cos(a)*16, player.y+Math.sin(a)*16,
+        Math.cos(a)*sp, Math.sin(a)*sp, rand(.25,.6), rand(2,6), 'rgba(240,140,50,.85)', 0, true);
+    }
+    for(const e of enemies){
+      if(e.state==='dead') continue;
+      const d=dist(player,e);
+      if(d<190+e.r){
+        const ang=Math.atan2(e.y-player.y,e.x-player.x);
+        if(Math.abs(angDiff(ang,player.facing))<.75){
+          const base = e.isWraith ? 26 : (e.type==='werewolf' ? 24 : 16);
+          hitEnemy(e, base, 120, ang);
+          e.burn=3.2;
+        }
+      }
+    }
+    if(G.quest===2 && dist(player,nest)<150) igniteNest();
+  }
+  if(name==='aard'){
+    G.shake=Math.max(G.shake,7);
+    for(let i=0;i<40;i++){
+      const a=rand(0,TAU), sp=rand(100,380);
+      spawnParticle(player.x,player.y,Math.cos(a)*sp,Math.sin(a)*sp,rand(.2,.5),rand(1,3),'rgba(150,220,215,.8)',0,true);
+    }
+    for(const e of enemies){
+      if(e.state==='dead') continue;
+      const d=dist(player,e);
+      if(d<175+e.r){
+        const ang=Math.atan2(e.y-player.y,e.x-player.x);
+        e.x+=Math.cos(ang)*90; e.y+=Math.sin(ang)*90;
+        e.stun=Math.max(e.stun,.8);
+        hitEnemy(e, 7, 0, ang);
+      }
+    }
+    for(const p of projectiles){ p.dead=true; }
+  }
+  if(name==='quen'){
+    player.shield=9; AudioFX.quen();
+    floatText(player.x,player.y-36,'盾印','#d8c27a');
+    for(let i=0;i<28;i++){
+      const a=rand(0,TAU);
+      spawnParticle(player.x+Math.cos(a)*18,player.y+Math.sin(a)*18,Math.cos(a)*20,Math.sin(a)*20,rand(.4,.9),rand(1,3),'rgba(232,201,116,.8)',0,true);
+    }
+  }
+}
+
+/* ---- 巢穴 ---- */
+function igniteNest(){
+  if(G.quest!==2) return;
+  G.quest = G.story.locketFound ? 4 : 3;
+  G.shake=16;
+  for(let i=0;i<70;i++) spawnParticle(nest.x+rand(-30,30), nest.y+rand(-20,20), rand(-120,120), rand(-220,-40), rand(.6,1.6), rand(2,7), 'rgba(240,140,50,.9)', 60, true);
+  toast('巢穴已焚毀', G.story.locketFound ? '銅匣已在你手上——回去找漁夫' : '沼婆倒下時掉了一隻銅匣');
+  updateQuestUI();
+  saveGame();
+}
+
+/* =========================================================
+   9. 任務 / NPC
+   階段：0 接委託 / 1 清磨坊 / 2 燒巢 / 3 拾銅匣 / 4 回報漁夫
+        5 墓園異動（獵人）/ 6 清夜泣＋調查神龕 / 7 擊敗墓中夜泣
+        8 回村長（最後選擇）/ 9 完結
+   ========================================================= */
+function act1Cleared(){
+  return enemies.filter(e=>e.act1).every(e=>e.state==='dead');
+}
+function wispsLeft(){
+  return enemies.filter(e=>e.type==='wisp'&&e.state!=='dead').length;
+}
+function checkQuestKills(){
+  if(G.quest===1 && act1Cleared()){
+    G.quest=2;
+    toast('沼屍已清除','用炎印燒掉巢穴，別讓牠們再回來');
+    updateQuestUI();
+  }
+  if(G.quest===6 && !tombwraithSpawned && wispsLeft()===0 && shrineActive){
+    spawnMatriarch();
+  }
+}
+function updateQuestUI(){
+  const qt=document.getElementById('qTitle'), qo=document.getElementById('qObj');
+  const gold=document.getElementById('gold');
+  if(!qt||!qo) return;
+  const set=(t,o)=>{ qt.textContent=t; qo.innerHTML=o; };
+  if(G.quest===0) set('霧沼的磨坊','找村長談談。');
+  else if(G.quest===1) set('霧沼的磨坊','清除磨坊一帶的怪物。<br><b>'+enemies.filter(e=>e.act1&&e.state!=='dead').length+'</b> 隻怪物仍在。');
+  else if(G.quest===2) set('霧沼的磨坊','用 <b>炎印</b> 燒掉沼屍巢穴。');
+  else if(G.quest===3) set('莉婭的銅匣','沼婆身上有一隻銅匣，拾回它。');
+  else if(G.quest===4) set('莉婭的銅匣','把銅匣帶回去給漁夫。');
+  else if(G.quest===5) set('墓園的夜鳴','去墓園找獵人米爾。');
+  else if(G.quest===6) set('墓園的夜鳴','清理夜泣，然後調查墓園神龕。<br><b>'+wispsLeft()+'</b> 隻夜泣仍在。'+(shrineActive?'<br>神龕已甦醒。':''));
+  else if(G.quest===7) set('墓園的夜鳴','擊敗墓中夜泣。');
+  else if(G.quest===8) set('最後的選擇','回去找村長，決定夜泣之心的去留。');
+  else set('委託完成','霧沼的霧散了。');
+  const side=document.getElementById('qSide');
+  if(side){
+    if(G.side.stage===0) side.innerHTML='支線：<b>委託板</b> 有嘢睇。';
+    else if(G.side.stage===1) side.innerHTML='支線：失蹤的補給車<br>補給箱 <b>'+G.side.cr+'/3</b>　·　沼婆 '+(G.side.bogcrone?'<b>已清</b>':'<b>未清</b>');
+    else if(G.side.stage===2) side.innerHTML='支線：回去 <b>委託板</b> 覆命。';
+    else side.innerHTML='支線：已完成。';
+    if(G.were.stage>0){
+      const wtxt = G.were.stage===1 ? ('爪痕 <b>'+G.were.marks+'/3</b>') : (G.were.stage===2 ? '去北邊巢穴' : (G.were.stage===3 ? '回報寡婦' : '已完成'));
+      side.innerHTML += '<br>支線：狼人的詛咒　'+wtxt;
+    }
+  }
+  gold.textContent='◈ '+G.gold;
+}
+function elderDialog(){
+  if(G.quest===0){
+    showDialog('村長', [
+      '灰狼，你總算來了。磨坊那邊的沼屍……已經吃了三個人。',
+      '最後一個是漁夫的兒子。連屍體都搵唔返。'
+    ], [
+      {text:'說吧，我接。', act:()=>acceptQuest(false)},
+      {text:'先談價錢。', act:()=>{ showDialog('村長',['一百五十克朗。這是我能拿出的全部了。'], [
+        {text:'成交。', act:()=>acceptQuest(true)},
+        {text:'太少了。', act:()=>{ showDialog('村長',['……灰狼，霧沼不是石港。'], [{text:'算了，我接。', act:()=>acceptQuest(false)}]); }}
+      ]); }},
+      {text:'我沒空。', act:closeDialog}
+    ]);
+  } else if(G.quest===1){
+    showDialog('村長',['磨坊還沒安靜。去河邊，把牠們清乾淨。'],[{text:'知道了。',act:closeDialog}]);
+  } else if(G.quest===2){
+    showDialog('村長',['巢還在。用炎印燒，別用手。'],[{text:'嗯。',act:closeDialog}]);
+  } else if(G.quest===3||G.quest===4){
+    showDialog('村長',['沼婆身上有咩，就拎去畀漁夫吧。他等咗好耐。'],[{text:'（點頭）',act:closeDialog}]);
+  } else if(G.quest===5||G.quest===6||G.quest===7){
+    showDialog('村長',['墓園嘅事，獵人米爾知得多。我……唔想再講。'],[{text:'（離開）',act:closeDialog}]);
+  } else if(G.quest===8){
+    showDialog('村長',[
+      '你返嚟了。夜泣之心……你打算點？',
+      '磨坊下面本來係一座舊神龕。當年係我哋填平佢，換嚟幾年收成。'
+    ], [
+      {text:'交出心，讓我封印它。', act:()=>{ G.story.seal=true; G.quest=9; G.gold+=250; AudioFX.coin(); updateQuestUI(); saveGame();
+        showDialog('村長',['……多謝你，灰狼。霧沼會記得呢一晚。'], [{text:'（離開）', act:()=>{ closeDialog(); setTimeout(()=>showEnding(G.story.truth?'truth_seal':'lie_seal'),450); }}]); }},
+      {text:'我會留著它。', act:()=>{ G.story.seal=false; G.quest=9; updateQuestUI(); saveGame();
+        showDialog('村長',['你會後悔的。'],[{text:'（離開）', act:()=>{ closeDialog(); setTimeout(()=>showEnding('keep'),450); }}]); }}
+    ]);
+  } else {
+    showDialog('村長',['霧沼欠你一份人情，灰狼。'],[{text:'（點頭）',act:closeDialog}]);
+  }
+}
+function acceptQuest(paid){
+  G.quest=1;
+  closeDialog();
+  toast('接受委託：霧沼的磨坊','前往舊磨坊，清除沼屍');
+  updateQuestUI();
+  saveGame();
+  if(paid) G.gold+=0;
+}
+function fisherDialog(){
+  if(G.quest<3){
+    showDialog('漁夫',['我個仔……佢到磨坊搵貓，就再也沒回來。','如果你去，幫我睇一眼。'], [{text:'我會的。',act:closeDialog}]);
+  } else if(G.quest===3){
+    showDialog('漁夫',['你手上……係咪執到啲嘢？佢身上應該有個銅匣。'],[{text:'我再去搵。',act:closeDialog}]);
+  } else if(G.quest===4 && G.story.locketFound){
+    showDialog('漁夫',[
+      '（他接過銅匣，手抖得好厲害。）',
+      '呢個係莉婭嘅銅匣。我老婆嘅。你喺邊度搵到？'
+    ], [
+      {text:'喺沼婆身上。她就是莉婭。', act:()=>{
+        G.story.truth=true; G.quest=5;
+        player.dmgMul*=1.1;
+        toast('取得：家族銀墜','傷害 +10%　·　漁夫知道了真相');
+        showDialog('漁夫',['……原來佢一直喺河邊。多謝你，灰狼。至少我知佢去咗邊。'],[{text:'節哀。',act:()=>{ closeDialog(); updateQuestUI(); saveGame(); }}]);
+      }},
+      {text:'喺磨坊廢墟。只是一件遺物。', act:()=>{
+        G.story.truth=false; G.quest=5;
+        player.inv.fishOil+=2;
+        toast('取得：魚油膏 ×2','按 R 使用（回復生命）');
+        showDialog('漁夫',['磨坊……也罷。至少佢返咗嚟。'],[{text:'（離開）',act:()=>{ closeDialog(); updateQuestUI(); saveGame(); }}]);
+      }}
+    ]);
+  } else if(G.quest>=5){
+    const line = G.story.truth ? '我知佢去咗邊。夠了。' : '多謝你幫我搵返個匣。';
+    showDialog('漁夫',[line],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+function hunterDialog(){
+  if(G.quest<5){
+    showDialog('獵人 米爾',['行遠啲，灰狼。呢度啲墳最近唔太安寧。'],[{text:'（離開）',act:closeDialog}]);
+  } else if(G.quest===5){
+    showDialog('獵人 米爾',[
+      '你燒咗磨坊個巢。做得好。但你搞醒咗下面啲嘢。',
+      '墓園個神龕本來封住一隻舊夜泣。而家封印裂咗，啲夜泣四圍走。'
+    ], [
+      {text:'點樣收科？', act:()=>{
+        G.quest=6; G.story.hunterMet=true;
+        player.buffs.wispOil=180;
+        toast('接受：墓園的夜鳴','夜泣油生效：對夜泣傷害 +50%（3 分鐘）');
+        showDialog('獵人 米爾',['先清晒啲夜泣，再摸個神龕。','呢樽夜泣油你拎去，搽落劍度。'],[{text:'（收下）',act:()=>{ closeDialog(); updateQuestUI(); saveGame(); }}]);
+      }},
+      {text:'我唔想捲入呢啲嘢。', act:closeDialog}
+    ]);
+  } else if(G.quest===6){
+    showDialog('獵人 米爾',shrineActive?['神龕醒咗。準備好就上。']:['夜泣清晒先，神龕先會應你。'],[{text:'（點頭）',act:closeDialog}]);
+  } else if(G.quest===7){
+    showDialog('獵人 米爾',['佢喺神龕前面。呢隻唔同平時啲夜泣。'],[{text:'（拔劍）',act:closeDialog}]);
+  } else {
+    showDialog('獵人 米爾',['霧沼欠你。我欠你。'],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+function shrineInteract(){
+  if(G.quest!==6){ return; }
+  if(wispsLeft()>0){ toast('神龕沉默不語','先清理墓園的夜泣'); return; }
+  if(shrineActive){ return; }
+  shrineActive=true; G.story.shrineDone=true;
+  toast('神龕甦醒','有啲嘢從地下爬上來');
+  spawnMatriarch();
+}
+function spawnMatriarch(){
+  if(tombwraithSpawned) return;
+  tombwraithSpawned=true;
+  const m=spawnEnemy('tombwraith', shrinePos.x, shrinePos.y-30);
+  m.uid='tombwraith_1'; m.aggro=true; m.state='chase';
+  enemies.push(m);
+  G.quest=7; G.bossOn=true;
+  document.getElementById('bossbar').classList.add('on');
+  const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='墓　中　妖　靈';
+  updateHUD();
+  G.shake=20;
+  for(let i=0;i<50;i++) spawnParticle(shrinePos.x+rand(-40,40), shrinePos.y+rand(-20,20), rand(-120,120), rand(-220,-40), rand(.6,1.6), rand(2,6), 'rgba(140,190,230,.8)', 40, true);
+  toast('墓中夜泣','擊敗它，結束霧沼的夜鳴');
+  updateQuestUI(); saveGame();
+}
+function interact(){
+  if(G.mode!=='play') return;
+  for(const l of loot){
+    if(dist(player,l)<78){ pickupLoot(l); return; }
+  }
+  const crate=props.find(p=>p.kind==='crate' && !p.taken && G.side.stage===1 && dist(player,p)<82);
+  if(crate){ pickupCrate(crate); return; }
+  const claw=props.find(p=>p.kind==='claw' && !p.taken && G.were.stage===1 && dist(player,p)<72);
+  if(claw){ clawInteract(claw); return; }
+  if(dist(player,boardPos)<92){ boardInteract(); return; }
+  if(!chestOpened && dist(player,chestPos)<95){ openChest(); return; }
+  if(G.quest===6 && dist(player,shrinePos)<95){ shrineInteract(); return; }
+  if(G.were.stage===2 && !G.were.outcome){
+    const ww=enemies.find(e=>e.type==='werewolf' && e.state!=='dead');
+    if(ww && dist(player,ww)<95){ werewolfDialog(); return; }
+  }
+  for(const n of npcs){
+    if(dist(player,n)<78){
+      if(n.id==='elder') elderDialog();
+      else if(n.id==='fisher') fisherDialog();
+      else if(n.id==='smith') openSmith();
+      else if(n.id==='widow') widowDialog();
+      else if(n.id==='husband') husbandDialog();
+      else hunterDialog();
+      return;
+    }
+  }
+  if(G.quest===2 && dist(player,nest)<110){
+    toast('需要用炎印點燃','按 1 施放炎印');
+    return;
+  }
+  if(G.quest===1 && dist(player,mill)<200){
+    toast('磨坊的氣味','沼屍就在附近');
+    return;
+  }
+}
+
+/* ---- 拾取 / 寶箱 ---- */
+function pickupLoot(l){
+  const idx=loot.indexOf(l);
+  if(idx<0) return;
+  loot.splice(idx,1);
+  const it=ITEMS[l.item];
+  if(l.item==='silver_sword'){
+    player.inv.sword='silver_sword';
+    if(player.gear.weapon<1) player.gear.weapon=1;
+    applyGear();
+    toast('取得：銀刃','對怪物傷害 +10');
+  } else if(l.item==='wolf_armor'){
+    player.inv.armor='wolf_armor';
+    if(player.gear.armor<1) player.gear.armor=1;
+    applyGear();
+    toast('取得：狼紋護甲','生命上限 +30');
+  } else if(l.item==='ore'||l.item==='hide'||l.item==='dust'){
+    player.mats[l.item]=(player.mats[l.item]||0)+1;
+    toast('取得：'+(it?it.name:l.item));
+  } else if(l.item==='locket'){
+    G.story.locketFound=true;
+    if(G.quest>=2 && G.quest<=3) G.quest=4;
+    toast('取得：莉婭的銅匣','帶回去給漁夫');
+    updateQuestUI();
+  } else if(l.item==='heart'){
+    toast('取得：夜泣之心','回去找村長');
+    updateQuestUI();
+  } else if(l.item==='fish_oil'){
+    player.inv.fishOil+=1;
+    toast('取得：魚油膏','按 R 使用（回復生命）');
+  } else {
+    player.inv.trophies[l.item]=(player.inv.trophies[l.item]||0)+1;
+    toast('取得：'+(it?it.name:l.item));
+  }
+  AudioFX.coin();
+  for(let i=0;i<18;i++) spawnParticle(l.x,l.y-10,rand(-40,40),rand(-80,-10),rand(.4,.9),rand(1,3),'rgba(232,201,116,.75)',40,true);
+  updateHUD(); saveGame();
+}
+function openChest(){
+  if(chestOpened) return;
+  chestOpened=true;
+  loot.push({x:chestPos.x, y:chestPos.y+18, item:'wolf_armor', bob:0});
+  toast('打開木箱','裡面有一件護甲');
+  for(let i=0;i<26;i++) spawnParticle(chestPos.x,chestPos.y-8,rand(-50,50),rand(-100,-10),rand(.4,1),rand(1,3),'rgba(232,201,116,.7)',40,true);
+  AudioFX.coin(); saveGame();
+}
+
+/* ---- 支線：失蹤的補給車 ---- */
+function checkSide(){
+  if(G.side.stage===1 && G.side.cr>=3 && G.side.bogcrone){
+    G.side.stage=2;
+    toast('補給已尋回','回去委託板覆命');
+    updateQuestUI(); saveGame();
+  }
+}
+function boardInteract(){
+  if(G.side.stage===0){
+    showDialog('委託板',[
+      '【支線】失蹤的補給車',
+      '商隊喺沼澤邊遇到沼屍，車散咗。三個補給箱唔見晒，仲有一隻沼婆守住條路。'
+    ], [
+      {text:'我接。', act:acceptSide},
+      {text:'（離開）', act:closeDialog}
+    ]);
+  } else if(G.side.stage===1){
+    showDialog('委託板',['已接委託。','仲有 <b>'+(3-G.side.cr)+'</b> 個補給箱未搵，沼澤沼婆'+(G.side.bogcrone?'已清。':'仲未死。')],[{text:'（離開）',act:closeDialog}]);
+  } else if(G.side.stage===2){
+    showDialog('委託板',['你搵返晒啲補給，亦清咗條路。'], [
+      {text:'領取報酬。', act:turnInSide},
+      {text:'遲啲。', act:closeDialog}
+    ]);
+  } else {
+    showDialog('委託板',['呢張委託已經完成。'],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+function acceptSide(){
+  if(G.side.stage!==0){ closeDialog(); return; }
+  G.side.stage=1;
+  const bogcrone=spawnEnemy('bogcrone', sideHagPos.x, sideHagPos.y);
+  bogcrone.side=true; bogcrone.act1=false; bogcrone.uid='sidebogcrone_1'; bogcrone.aggro=true;
+  enemies.push(bogcrone);
+  closeDialog();
+  toast('接受委託：失蹤的補給車','搵返 3 個補給箱，清理沼澤沼婆');
+  updateQuestUI(); saveGame();
+}
+function turnInSide(){
+  if(G.side.stage!==2){ closeDialog(); return; }
+  G.side.stage=3;
+  G.gold+=150; player.mats.ore+=3; player.mats.hide+=2; G.xp+=80;
+  closeDialog();
+  checkLevel();
+  toast('委託完成：失蹤的補給車','+150 克朗、銀礦石 ×3、怪物皮 ×2');
+  AudioFX.coin(); updateQuestUI(); saveGame();
+}
+function pickupCrate(c){
+  if(G.side.stage!==1 || c.taken) return;
+  c.taken=true; G.side.cr++;
+  toast('補給箱 '+G.side.cr+' / 3');
+  for(let i=0;i<20;i++) spawnParticle(c.x,c.y-8,rand(-40,40),rand(-90,-10),rand(.4,.9),rand(1,3),'rgba(232,201,116,.7)',40,true);
+  AudioFX.coin(); checkSide(); updateQuestUI(); saveGame();
+}
+
+/* ---- 支線：狼人的詛咒 ---- */
+function acceptWere(){
+  if(G.were.stage!==0){ closeDialog(); return; }
+  G.were.stage=1;
+  closeDialog();
+  toast('接受委託：狼人的詛咒','調查森林裡三處爪痕');
+  updateQuestUI(); saveGame();
+}
+function clawInteract(c){
+  if(G.were.stage!==1 || c.taken) return;
+  c.taken=true; G.were.marks++;
+  toast('爪痕 '+G.were.marks+' / 3','血仲係新嘅……');
+  for(let i=0;i<18;i++) spawnParticle(c.x,c.y-6,rand(-40,40),rand(-70,-10),rand(.4,.9),rand(1,3),'rgba(160,70,60,.6)',30,true);
+  if(G.were.marks>=3){ G.were.stage=2; spawnWerewolf(); }
+  updateQuestUI(); saveGame();
+}
+function spawnWerewolf(){
+  if(enemies.some(e=>e.type==='werewolf' && e.state!=='dead')) return;
+  const w=spawnEnemy('werewolf', wereLair.x, wereLair.y);
+  w.uid='werewolf_1'; w.aggro=true; w.leapCd=3;
+  enemies.push(w);
+  toast('森林深處傳來狼嚎','去巢穴找牠');
+  updateQuestUI(); saveGame();
+}
+function werewolfDialog(){
+  if(G.were.stage!==2 || G.were.outcome) return;
+  showDialog('狼人',[
+    '牠停低咗。你見到頸上嘅銀鏈——係寡婦艾蓮嘅丈夫。',
+    '牠喉嚨發出低鳴，好似認得人。'
+  ], [
+    {text:'（拔劍）殺了他。', act:()=>{
+      closeDialog();
+      const w=enemies.find(e=>e.type==='werewolf' && e.state!=='dead');
+      if(w){ w.aggro=true; w.speed*=1.1; }
+      toast('戰鬥開始','狼人撲咗過嚟');
+    }},
+    {text:'（夜泣塵×3、銀礦石×1）試著治好他。', act:()=>{
+      if(player.mats.dust<3 || player.mats.ore<1){
+        showDialog('狼人',['你需要 <b>夜泣塵×3</b> 同 <b>銀礦石×1</b>。'],[{text:'（離開）',act:closeDialog}]);
+        return;
+      }
+      player.mats.dust-=3; player.mats.ore-=1;
+      const w=enemies.find(e=>e.type==='werewolf' && e.state!=='dead');
+      if(w) beginCureTransform(w);
+      closeDialog();
+      updateQuestUI(); saveGame();
+    }},
+    {text:'我還沒準備好。', act:closeDialog}
+  ]);
+}
+function husbandDialog(){
+  showDialog('艾蓮的丈夫',['多謝你，灰狼。','我唔記得發生咩事……但艾蓮話你救咗我。'],[{text:'好好活落去。',act:closeDialog}]);
+}
+function widowDialog(){
+  if(G.were.stage===0){
+    showDialog('寡婦 艾蓮',[
+      '我丈夫三日前入咗森林，之後就冇返嚟。',
+      '昨夜我見到一隻狼人……牠頸上戴住我送嘅銀鏈。'
+    ], [
+      {text:'我去睇睇。', act:acceptWere},
+      {text:'（離開）', act:closeDialog}
+    ]);
+  } else if(G.were.stage===1){
+    showDialog('寡婦 艾蓮',['森林裡有爪痕，我親眼見過。','仲有 <b>'+(3-G.were.marks)+'</b> 處未查。'],[{text:'（離開）',act:closeDialog}]);
+  } else if(G.were.stage===2){
+    showDialog('寡婦 艾蓮',['牠喺北邊森林嘅巢穴。','求你……唔好殺佢。'],[{text:'（離開）',act:closeDialog}]);
+  } else if(G.were.stage===3){
+    if(G.were.outcome==='cured'){
+      showDialog('寡婦 艾蓮',['你救返佢……多謝你。','呢個護符你拎住，係我家族留落嚟嘅。'], [
+        {text:'（收下）', act:()=>{
+          G.were.stage=4; G.gold+=100; player.dmgMul+=0.05; G.xp+=120;
+          closeDialog(); checkLevel();
+          toast('委託完成：狼人的詛咒','+100 克朗、家族護符（傷害 +5%）、120 XP');
+          updateQuestUI(); saveGame();
+        }}
+      ]);
+    } else {
+      showDialog('寡婦 艾蓮',['……我知道。','至少佢唔會再痛。'], [
+        {text:'（收下報酬）', act:()=>{
+          G.were.stage=4; G.gold+=200; G.xp+=100;
+          closeDialog(); checkLevel();
+          toast('委託完成：狼人的詛咒','+200 克朗、100 XP');
+          updateQuestUI(); saveGame();
+        }}
+      ]);
+    }
+  } else {
+    showDialog('寡婦 艾蓮',['多謝你，灰狼。'],[{text:'（離開）',act:closeDialog}]);
+  }
+}
+/* ---- 鐵匠 / 裝備升級 ---- */
+function openSmith(){
+  if(G.mode!=='play') return;
+  G.mode='smith';
+  renderSmith();
+  document.getElementById('smithPanel').classList.add('on');
+}
+function closeSmith(){
+  if(G.mode==='smith'){
+    G.mode='play';
+    document.getElementById('smithPanel').classList.remove('on');
+  }
+}
+function renderSmith(){
+  const w=weaponDef(), a=armorDef();
+  const wn=WEAPONS[player.gear.weapon+1] || null;
+  const an=ARMORS[player.gear.armor+1] || null;
+  const el=(id)=>document.getElementById(id);
+  el('smithWCur').textContent=w.name+'（'+w.desc+'）';
+  el('smithACur').textContent=a.name+'（'+a.desc+'）';
+  el('smithWNext').innerHTML=wn ? ('→ '+wn.name+'<span class="cost">'+costText(wn.cost)+'</span>') : '<span class="cost">已達最高階</span>';
+  el('smithANext').innerHTML=an ? ('→ '+an.name+'<span class="cost">'+costText(an.cost)+'</span>') : '<span class="cost">已達最高階</span>';
+  el('smithWBtn').classList.toggle('off', !wn || !hasMats(wn.cost));
+  el('smithABtn').classList.toggle('off', !an || !hasMats(an.cost));
+  el('smithGold').textContent=G.gold;
+  el('smithOre').textContent=player.mats.ore;
+  el('smithHide').textContent=player.mats.hide;
+  el('smithDust').textContent=player.mats.dust;
+}
+function costText(c){
+  if(!c) return '';
+  const parts=[];
+  if(c.gold) parts.push('◈'+c.gold);
+  if(c.ore) parts.push('礦石×'+c.ore);
+  if(c.hide) parts.push('皮×'+c.hide);
+  if(c.dust) parts.push('塵×'+c.dust);
+  return parts.join('　');
+}
+function doUpgrade(kind){
+  const r=upgradeGear(kind);
+  if(r.ok){ AudioFX.coin(); toast('升級成功', r.msg); }
+  else toast('升級失敗', r.msg);
+  renderSmith(); updateHUD();
+}
+
+function showDialog(name, lines, options){
+  G.mode='dialog';
+  G.dialog={name, lines, index:0, options:options||[{text:'（離開）',act:closeDialog}], sel:0};
+  const pmap={'村長':'p_elder','漁夫':'p_fisherman','獵人 米爾':'p_hunter','鐵匠 老莫':'p_blacksmith','洛恩':'p_hero'};
+  const pic=document.getElementById('dPortrait');
+  const pk=pmap[name];
+  if(pk && ASSETS[pk]){ pic.src=ASSETS[pk].src; pic.classList.add('on'); }
+  else { pic.classList.remove('on'); }
+  renderDialog();
+  document.getElementById('dialog').classList.remove('hidden');
+}
+function renderDialog(){
+  const d=G.dialog; if(!d) return;
+  document.getElementById('dName').textContent=d.name;
+  document.getElementById('dText').textContent=d.lines[d.index];
+  const box=document.getElementById('dOpts'); box.innerHTML='';
+  d.options.forEach((o,i)=>{
+    const el=document.createElement('div');
+    el.className='dopt'+(i===d.sel?' sel':'');
+    el.innerHTML='<b>'+(i+1)+'</b>'+o.text;
+    el.onclick=()=>chooseOption(i);
+    box.appendChild(el);
+  });
+}
+function chooseOption(i){
+  const d=G.dialog; if(!d) return;
+  if(i<0||i>=d.options.length) return;
+  d.options[i].act();
+}
+function closeDialog(){
+  G.dialog=null; document.getElementById('dialog').classList.add('hidden');
+  if(G.mode==='dialog') G.mode='play';
+}
+function toast(t, sub){
+  const el=document.getElementById('toast');
+  el.innerHTML=t+(sub?'<small>'+sub+'</small>':'');
+  el.classList.add('on'); G.toastTimer=3.4;
+}
+
+/* ---- 存檔 / 行囊 ---- */
+function storageGet(){ try{ return localStorage.getItem(SAVE_KEY); }catch(e){ return memSave; } }
+function storageSet(v){ try{ localStorage.setItem(SAVE_KEY,v); }catch(e){ memSave=v; } }
+function hasSave(){ return !!storageGet(); }
+function flashSave(){
+  const el=document.getElementById('saveHint'); if(!el) return;
+  el.classList.add('on'); clearTimeout(flashSave._t);
+  flashSave._t=setTimeout(()=>el.classList.remove('on'),1300);
+}
+function saveGame(){
+  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith') return;
+  try{
+    const data={v:3, ts:Date.now(), level:G.level, xp:G.xp, gold:G.gold, quest:G.quest,
+      hp:Math.round(player.hp), maxHp:player.maxHp, bonusDmg:player.bonusDmg, dmgMul:player.dmgMul,
+      potions:player.potions, inv:player.inv, buffs:player.buffs, gear:player.gear, mats:player.mats,
+      x:Math.round(player.x), y:Math.round(player.y), kills:G.kills, story:G.story, side:G.side, were:G.were,
+      claws:props.filter(p=>p.kind==='claw').map(p=>!!p.taken),
+      dead:enemies.filter(e=>e.state==='dead').map(e=>e.uid),
+      loot:loot.map(l=>({x:Math.round(l.x), y:Math.round(l.y), item:l.item})),
+      chestOpened, tombwraithSpawned, shrineActive};
+    storageSet(JSON.stringify(data)); flashSave();
+  }catch(e){}
+}
+function loadGame(){
+  const raw=storageGet(); if(!raw) return false;
+  let d; try{ d=JSON.parse(raw); }catch(e){ return false; }
+  resetGame();
+  G.level=d.level||1; G.xp=d.xp||0; G.gold=d.gold||0; G.quest=d.quest||0; G.kills=d.kills||0;
+  if(d.story) G.story=Object.assign({truth:null,seal:null,hunterMet:false,locketFound:false,shrineDone:false}, d.story);
+  if(d.side) G.side=Object.assign({stage:0,cr:0,bogcrone:false}, d.side);
+  if(d.were) G.were=Object.assign({stage:0,marks:0,outcome:null}, d.were);
+  if(d.gear) player.gear=Object.assign({weapon:0,armor:0}, d.gear);
+  if(d.mats) player.mats=Object.assign({ore:0,hide:0,dust:0}, d.mats);
+  player.dmgMul=d.dmgMul||1; player.potions=(d.potions==null?3:d.potions);
+  if(d.inv){ player.inv=d.inv; if(!player.inv.trophies) player.inv.trophies={}; if(player.inv.fishOil==null) player.inv.fishOil=0; }
+  if(d.buffs) player.buffs=Object.assign({wispOil:0}, d.buffs);
+  applyGear();
+  player.hp=clamp(d.hp||player.maxHp,1,player.maxHp);
+  if(d.x) player.x=d.x; if(d.y) player.y=d.y;
+  if(d.dead) enemies=enemies.filter(e=>!d.dead.includes(e.uid));
+  loot=(d.loot||[]).map(l=>({x:l.x, y:l.y, item:l.item, bob:Math.random()*6}));
+  chestOpened=!!d.chestOpened;
+  shrineActive=!!d.shrineActive;
+  tombwraithSpawned=!!d.tombwraithSpawned;
+  if(G.side.stage===1 && !G.side.bogcrone && !enemies.some(e=>e.side)){
+    const bogcrone=spawnEnemy('bogcrone', sideHagPos.x, sideHagPos.y);
+    bogcrone.side=true; bogcrone.act1=false; bogcrone.uid='sidebogcrone_1'; bogcrone.aggro=true;
+    enemies.push(bogcrone);
+  }
+  if(d.claws){
+    let i=0;
+    for(const p of props){ if(p.kind==='claw'){ p.taken=!!d.claws[i++]; } }
+  }
+  if(G.were.stage>=2 && !G.were.outcome && !enemies.some(e=>e.type==='werewolf' && e.state!=='dead')){
+    const w=spawnEnemy('werewolf', wereLair.x, wereLair.y);
+    w.uid='werewolf_1'; w.aggro=true; w.leapCd=3;
+    enemies.push(w);
+  }
+  if(tombwraithSpawned && G.quest===7 && !enemies.some(e=>e.type==='tombwraith')){
+    const m=spawnEnemy('tombwraith', shrinePos.x, shrinePos.y-30);
+    m.uid='tombwraith_1'; m.aggro=true; m.state='chase';
+    enemies.push(m);
+    G.bossOn=true; document.getElementById('bossbar').classList.add('on');
+  }
+  updateQuestUI(); updateHUD();
+  return true;
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} memSave=null; }
+
+function toggleInventory(){
+  if(G.mode==='inventory'){ G.mode='play'; document.getElementById('invPanel').classList.remove('on'); return; }
+  if(G.mode!=='play') return;
+  G.mode='inventory'; renderInventory(); document.getElementById('invPanel').classList.add('on');
+}
+function renderInventory(){
+  const inv=player.inv||{}, t=inv.trophies||{};
+  const w=weaponDef(), a=armorDef();
+  document.getElementById('invSword').textContent=w.name+(player.gear.weapon>0?'（+'+w.dmg+'）':'');
+  document.getElementById('invArmor').textContent=a.name+(player.gear.armor>0?'（+'+a.hp+' HP）':'');
+  document.getElementById('invDmg').textContent='+'+Math.round(((player.dmgMul||1)-1)*100)+'%　(+'+(player.bonusDmg||0)+')';
+  document.getElementById('invHp').textContent=player.maxHp;
+  document.getElementById('invGold').textContent=G.gold;
+  const parts=[];
+  if(t.bogdweller_heart) parts.push('沼屍之心 ×'+t.bogdweller_heart);
+  if(t.wisp_essence) parts.push('夜泣精華 ×'+t.wisp_essence);
+  if(inv.fishOil) parts.push('魚油膏 ×'+inv.fishOil);
+  document.getElementById('invTrophy').textContent=parts.length?parts.join('　'):'—';
+  const buffEl=document.getElementById('invBuff');
+  if(buffEl) buffEl.textContent = player.buffs.wispOil>0 ? '夜泣油 '+Math.ceil(player.buffs.wispOil)+' 秒' : '—';
+  const matsEl=document.getElementById('invMats');
+  if(matsEl) matsEl.textContent='礦石×'+player.mats.ore+'　皮×'+player.mats.hide+'　塵×'+player.mats.dust;
+}
+function toggleJournal(){
+  if(G.mode==='journal'){ G.mode='play'; document.getElementById('journalPanel').classList.remove('on'); return; }
+  if(G.mode!=='play') return;
+  G.mode='journal'; renderJournal(); document.getElementById('journalPanel').classList.add('on');
+}
+function renderJournal(){
+  const obj=document.getElementById('jObj'), body=document.getElementById('jBody');
+  if(!obj||!body) return;
+  obj.innerHTML=document.getElementById('qObj').innerHTML+'<br>'+document.getElementById('qSide').innerHTML;
+  const rows=[
+    ['霧沼','河邊的村子，靠磨坊同漁獲過活。霧一年比一年厚。'],
+    ['莉婭','漁夫的妻子。三年前失蹤——村長話佢走咗。'],
+    ['沼婆','沼屍的首領。有人話佢哋係溺死者變嘅。'],
+    ['夜泣','墳墓裡不肯走的東西。怕火，怕銀。'],
+    ['神龕','磨坊地下的舊神龕。村長話「填平佢，換嚟幾年收成」。'],
+    ['老莫','村口鐵匠。可以用礦石、怪物皮同夜泣塵升級裝備。']
+  ];
+  let html='';
+  for(const r of rows) html+='<div class="jrow"><b>'+r[0]+'</b><span>'+r[1]+'</span></div>';
+  if(G.story.locketFound) html+='<div class="jrow"><b>銅匣</b><span>莉婭的遺物，內有一張小畫像。</span></div>';
+  if(G.story.hunterMet) html+='<div class="jrow"><b>米爾</b><span>墓園旁的獵人。佢話神龕封印裂咗。</span></div>';
+  if(G.side.stage>0) html+='<div class="jrow"><b>補給車</b><span>商隊喺沼澤遇襲。補給箱 '+G.side.cr+'/3，沼婆'+(G.side.bogcrone?'已清':'未清')+'。</span></div>';
+  if(G.were.stage>0) html+='<div class="jrow"><b>狼人</b><span>寡婦艾蓮的丈夫。爪痕 '+G.were.marks+'/3，'+(G.were.outcome==='cured'?'已解除詛咒':(G.were.outcome==='killed'?'已死':'下落不明'))+'。</span></div>';
+  body.innerHTML=html;
+}
+function showPrologue(){
+  G.mode='prologue';
+  const el=document.getElementById('prologue');
+  if(new URLSearchParams(location.search).get('instant')==='1') el.classList.add('instant');
+  el.classList.remove('hidden');
+}
+function endPrologue(){
+  document.getElementById('prologue').classList.add('hidden');
+  G.mode='play'; G.prologue=false;
+  toast('霧沼，夜半','按 E 或點擊與村長對話');
+}
+function retryFromSave(){
+  document.getElementById('over').classList.add('hidden');
+  if(loadGame()){ G.mode='play'; G.dead=false; player.dead=false; player.hp=Math.max(1,player.hp); cam.x=clamp(player.x-VW/2,0,W-VW); cam.y=clamp(player.y-VH/2,0,H-VH); toast('由最近存檔重試'); }
+  else startGame(true);
+}
+function showEnding(kind){
+  G.mode='win';
+  const endings={
+    truth_seal:{k:'THE TRUTH, LAID TO REST', t:'霧散',
+      b:'你講咗真相，亦封印咗夜泣之心。<br>漁夫喺磨坊舊址埋咗莉婭嘅銅匣。霧沼第一次，夜晚冇再聽到水聲。'},
+    lie_seal:{k:'A KIND LIE', t:'善意的謊言',
+      b:'你收起咗真相，但交出了夜泣之心。<br>漁夫仍然相信個仔係俾沼屍捉走。有時，無知係一種仁慈。'},
+    keep:{k:'A NEW WATCHER', t:'新的守夜人',
+      b:'你留低夜泣之心。霧沼嘅霧散咗，但你聽到心臟喺度跳。<br>下一次，可能係你守喺墓園。'}
+  };
+  const e=endings[kind]||endings.lie_seal;
+  document.getElementById('overKicker').textContent=e.k;
+  document.getElementById('overTitle').textContent=e.t;
+  const tspan2=document.querySelector('#over .tstart'); if(tspan2) tspan2.innerHTML='按 <b>ENTER</b> 睇後日談';
+  const choice = G.story.truth===true ? '真相' : '隱瞞';
+  const seal = G.story.seal===true ? '封印' : '保留';
+  document.getElementById('overStats').innerHTML=
+    e.b + '<br><br>擊殺　<b>'+G.kills+'</b>　·　等級　<b>LV '+G.level+'</b>　·　報酬　<b>'+G.gold+' 克朗</b><br>'+
+    '選擇　<b>'+choice+'</b>　·　夜泣之心　<b>'+seal+'</b>';
+  document.getElementById('over').classList.remove('hidden');
+}
+
+/* =========================================================
+   10. 粒子 / 浮字
+   ========================================================= */
+function showEpilogue(){
+  const t=G.story.truth, seal=G.story.seal;
+  const sec=[];
+  sec.push(t ? '你把銅匣交還漁夫，講出莉婭嘅結局。磨坊嘅霧總算散咗。' : '你選擇隱瞞銅匣嘅真相。漁夫仍然相信個仔係俾沼屍捉走——有時無知係仁慈。');
+  sec.push(seal ? '夜泣之心被封回墓園神龕，夜鳴從此停止，磨坊嘅地下水再冇聲音。' : '你留低夜泣之心。霧散咗，但你每晚都聽到心跳聲，好似有人喺地底叫你都巿。');
+  sec.push(G.side.stage>=3 ? '商隊嘅補給已經尋回。委託板上多咗一張「已完成」。' : '沼澤邊嘅補給車委託仍未完成，商隊仲等緊消息。');
+  if(G.were.outcome==='cured') sec.push('艾蓮嘅丈夫變返人形。佢哋喺村口重建咗間屋，窗一直亮到好夜。');
+  else if(G.were.outcome==='killed') sec.push('艾蓮喺墓園埋咗丈夫。佢冇再同人講嘢，只係每日去掃墓。');
+  else sec.push('森林裡嘅狼人仍然下落不明。每到月圓，村口都會多幾道爪痕。');
+  const good=(t?1:0)+(seal?1:0)+(G.side.stage>=3?1:0)+(G.were.outcome==='cured'?1:0);
+  const fin = good>=3 ? '春天再嚟嘅時候，霧終於薄到睇得見對岸。霧沼第一次，有人喺夜裡笑。'
+    : (good>=2 ? '霧沼仍然有霧，但至少有人記得你。'
+    : '你離開咗霧沼。霧跟住你走咗好遠，之後再冇散過。');
+  const body=document.getElementById('epiBody');
+  body.innerHTML=sec.map(s=>'<div class="esec">'+s+'</div>').join('');
+  document.getElementById('epiFinal').textContent=fin;
+  document.getElementById('epilogue').classList.remove('hidden');
+  G.mode='epilogue';
+}
+function hideEpilogue(){
+  document.getElementById('epilogue').classList.add('hidden');
+  if(G.mode==='epilogue') G.mode='win';
+}
+function beginCureTransform(w){
+  if(!w) return;
+  G.transform={x:w.x, y:w.y, t:0, dur:1.9};
+  G.flash=0.7; G.shake=16;
+  w.hp=0; w.state='dead'; w.deadT=0;
+  for(let i=0;i<50;i++) spawnParticle(w.x+rand(-20,20), w.y-24, rand(-90,90), rand(-150,20), rand(.5,1.2), rand(2,5), 'rgba(200,220,255,.75)', 30, true);
+  toast('詛咒解除中…','');
+  updateQuestUI(); saveGame();
+}
+function spawnParticle(x,y,vx,vy,life,size,color,grav,additive){
+  if(particles.length>700) return;
+  particles.push({x,y,vx,vy,life,max:life,size,color,grav:grav||0,add:!!additive});
+}
+function spawnBlood(x,y,ang){
+  for(let i=0;i<12;i++){
+    const a=ang+rand(-.7,.7), sp=rand(40,240);
+    spawnParticle(x,y,Math.cos(a)*sp,Math.sin(a)*sp-40,rand(.3,.9),rand(1.5,4),'rgba(150,26,28,.85)',120);
+  }
+  for(let i=0;i<5;i++) spawnParticle(x,y,rand(-50,50),rand(-90,-10),rand(.5,1.2),rand(2,4),'rgba(80,10,12,.7)',80);
+}
+function floatText(x,y,txt,color){
+  texts.push({x,y,txt,color,t:0,life:1.1});
+}
+
+/* =========================================================
+   11. 更新
+   ========================================================= */
+function update(dt){
+  G.time+=dt;
+  if(G.hitStop>0){ G.hitStop-=dt; }
+  const scale = G.hitStop>0?0.22:1;
+  const d = dt*scale;
+
+  // 計時器
+  for(const k in signs) signs[k].cd=Math.max(0,signs[k].cd-d);
+  player.atkCd=Math.max(0,player.atkCd-d);
+  player.dodgeCd=Math.max(0,player.dodgeCd-d);
+  player.iframe=Math.max(0,player.iframe-d);
+  player.shield=Math.max(0,player.shield-d);
+  player.hurtFlash=Math.max(0,player.hurtFlash-d);
+  G.shake=Math.max(0,G.shake-d*60);
+  if(G.toastTimer>0){ G.toastTimer-=dt; if(G.toastTimer<=0) document.getElementById('toast').classList.remove('on'); }
+
+  if(G.mode!=='play') return;
+
+  // 藥水回復
+  if(player.potionHeal>0){
+    player.potionHeal-=d;
+    player.hp=Math.min(player.maxHp, player.hp + 14*d);
+  }
+  if(player.buffs.wispOil>0) player.buffs.wispOil=Math.max(0, player.buffs.wispOil-d);
+
+  // 自動存檔（每 20 秒）
+  G.saveTimer=(G.saveTimer||0)+dt;
+  if(G.saveTimer>20){ G.saveTimer=0; saveGame(); }
+  // 狼人變身動畫
+  if(G.transform){
+    G.transform.t+=dt;
+    if(Math.random()<.6) spawnParticle(G.transform.x+rand(-30,30), G.transform.y-rand(0,44), rand(-50,50), rand(-110,-20), rand(.3,.9), rand(1,3), 'rgba(210,225,255,.7)', 20, true);
+    G.flash=Math.max(G.flash,.12);
+    if(G.transform.t>=G.transform.dur){
+      const tf=G.transform; G.transform=null;
+      G.were.outcome='cured'; G.were.stage=3;
+      npcs.push(makeNPC('husband','艾蓮的丈夫', tf.x, tf.y+10, '#6a5a4a'));
+      toast('詛咒解除','狼人變返人形');
+      updateQuestUI(); saveGame();
+    }
+  }
+  if(G.flash>0) G.flash=Math.max(0, G.flash-dt*1.4);
+
+  // 玩家移動（鍵盤 / 滑鼠點擊）
+  let mx=0,my=0;
+  if(keys['KeyW']||keys['ArrowUp']) my--;
+  if(keys['KeyS']||keys['ArrowDown']) my++;
+  if(keys['KeyA']||keys['ArrowLeft']) mx--;
+  if(keys['KeyD']||keys['ArrowRight']) mx++;
+  const len=Math.hypot(mx,my);
+  if(len>0){ mx/=len; my/=len; player.moveTo=null; }
+
+  let moveAng=null;
+  if(len>0){ moveAng=Math.atan2(my,mx); }
+  else if(player.moveTo){
+    const dx=player.moveTo.x-player.x, dy=player.moveTo.y-player.y;
+    const dd=Math.hypot(dx,dy);
+    if(dd>7){ moveAng=Math.atan2(dy,dx); }
+    else { player.moveTo=null; if(player.pending) tryPending(); }
+  }
+  if(player.target){
+    const t=player.target;
+    if(t.state==='dead'){ player.target=null; }
+    else {
+      const dd=Math.hypot(t.x-player.x,t.y-player.y);
+      if(dd>96){ moveAng=Math.atan2(t.y-player.y,t.x-player.x); player.moveTo=null; }
+      else { moveAng=null; player.moveTo=null; faceTo(t.x,t.y);
+        if(player.atkCd<=0 && !player.atk && player.stam>=12) attack('fast');
+      }
+    }
+  }
+
+  player.moving = (moveAng!==null) || player.dodge>0;
+  const sprinting=(keys['ShiftLeft']||keys['ShiftRight'])&&player.stam>2&&moveAng!==null;
+  let spd = sprinting?player.sprint:player.speed;
+  if(inWater(player.x,player.y)) spd*=.72;
+  if(player.atk&&player.atk.t<player.atk.dur*.6) spd*=.35;
+
+  if(player.dodge>0){
+    player.dodge-=d;
+    player.x+=Math.cos(player.dodgeAng)*560*d;
+    player.y+=Math.sin(player.dodgeAng)*560*d;
+    if(Math.random()<.6) spawnParticle(player.x,player.y+8,rand(-20,20),rand(-10,10),.4,rand(1,3),'rgba(150,150,140,.35)',0);
+  } else {
+    if(sprinting) player.stam=Math.max(0,player.stam-20*d);
+    if(moveAng!==null){
+      player.x+=Math.cos(moveAng)*spd*d;
+      player.y+=Math.sin(moveAng)*spd*d;
+      player.walk+=d*10;
+    }
+  }
+
+  // 法印/藥水回復精力
+  player.stam=Math.min(player.maxStam, player.stam + (sprinting?0:20*d));
+
+  // 面向：攻擊中鎖定；移動面向移動方向；否則面向滑鼠
+  if(player.atk==null){
+    if(moveAng!==null) player.facing=moveAng;
+    else {
+      const ww=screenToWorld(mouse.x, mouse.y);
+      player.facing=Math.atan2(ww.y-player.y, ww.x-player.x);
+    }
+  }
+
+  // 迴避
+  if((keys['Space'])&&player.dodgeCd<=0&&player.stam>12&&player.dodge<=0){
+    player.stam-=18; player.dodge=.22; player.dodgeCd=.75; player.dodgeAng=Math.atan2(my,mx);
+    if(len===0) player.dodgeAng=player.facing+Math.PI;
+    player.iframe=.28;
+    for(let i=0;i<10;i++) spawnParticle(player.x,player.y+6,rand(-60,60),rand(-30,10),.35,rand(1,3),'rgba(140,140,130,.4)',0);
+  }
+
+  // 攻擊
+  if(player.atk){
+    player.atk.t+=d;
+    if(!player.atk.hit && player.atk.t>=player.atk.hitAt){ player.atk.hit=true; applyAttackHit(player.atk); G.shake=Math.max(G.shake,3); }
+    if(player.atk.t>=player.atk.dur) player.atk=null;
+  }
+
+  // 位置修正
+  const p=resolveCircle(player.x,player.y,player.r);
+  player.x=clamp(p.x,20,W-20); player.y=clamp(p.y,20,H-20);
+
+  // NPC
+  for(const n of npcs){
+    n.talk+=d;
+    const dd=dist(player,n);
+    n.facing=Math.atan2(player.y-n.y, player.x-n.x);
+  }
+
+  // 提示
+  const near=npcs.find(n=>dist(player,n)<78);
+  const nearLoot=loot.find(l=>dist(player,l)<78);
+  const pr=document.getElementById('prompt');
+  let promptText=null;
+  if(nearLoot) promptText='Ｅ　拾取 '+((ITEMS[nearLoot.item]&&ITEMS[nearLoot.item].name)||nearLoot.item);
+  else if(!chestOpened && dist(player,chestPos)<95) promptText='Ｅ　打開木箱';
+  else if(G.quest===6 && dist(player,shrinePos)<95) promptText='Ｅ　調查神龕';
+  else if(G.were.stage===1 && props.some(p=>p.kind==='claw' && !p.taken && dist(player,p)<72)) promptText='Ｅ　調查爪痕';
+  else if(G.were.stage===2 && !G.were.outcome && enemies.some(e=>e.type==='werewolf' && e.state!=='dead' && dist(player,e)<95)) promptText='Ｅ　與狼人對峙';
+  else if(near) promptText='Ｅ　與'+near.name+'對話';
+  if(promptText){ pr.textContent=promptText; pr.classList.add('on'); }
+  else pr.classList.remove('on');
+
+  // 敵人
+  updateEnemies(d);
+
+  // 配樂張力（頭目 / 附近敵人）
+  let threat=0;
+  if(G.bossOn) threat=1;
+  else { for(const e of enemies){ if(e.state!=='dead' && e.aggro && dist(e,player)<520){ threat=Math.max(threat,0.6); } } }
+  AudioFX.setIntensity(threat);
+  if(G.bossOn !== !!G._bossMusic){
+    G._bossMusic = G.bossOn;
+    const mat = enemies.some(e=>e.type==='tombwraith' && e.state!=='dead');
+    AudioFX.setBoss(G.bossOn, mat?49:55);
+  }
+
+  // 投射物
+  for(const p of projectiles){
+    if(p.dead) continue;
+    p.x+=p.vx*d; p.y+=p.vy*d; p.t+=d;
+    if(Math.random()<.5) spawnParticle(p.x,p.y,rand(-20,20),rand(-20,20),.4,rand(1,3),'rgba(120,190,140,.55)',0,true);
+    if(dist(p,player)<player.r+10){ hurtPlayer(p.dmg,p.x,p.y); p.dead=true; for(let i=0;i<14;i++) spawnParticle(p.x,p.y,rand(-80,80),rand(-80,80),.5,rand(2,4),'rgba(100,180,120,.7)',60,true); }
+    if(p.t>2.6) p.dead=true;
+  }
+  projectiles=projectiles.filter(p=>!p.dead);
+
+  // 粒子
+  for(const q of particles){
+    q.life-=d; q.x+=q.vx*d; q.y+=q.vy*d; q.vy+=q.grav*d; q.vx*=(1-1.6*d);
+  }
+  particles=particles.filter(q=>q.life>0);
+  for(const c of G.clickFx) c.t+=dt;
+  G.clickFx=G.clickFx.filter(c=>c.t<0.7);
+
+  // 浮字
+  for(const t of texts){ t.t+=dt; t.y-=26*dt; }
+  texts=texts.filter(t=>t.t<t.life);
+
+  // 霧
+  for(const f of fogs){ f.x+=f.vx*dt; f.y+=f.vy*dt; if(f.x<-f.r)f.x=W+f.r; if(f.x>W+f.r)f.x=-f.r; if(f.y<-f.r)f.y=H+f.r; if(f.y>H+f.r)f.y=-f.r; }
+
+  // 相機
+  cam.x=lerp(cam.x, clamp(player.x-VW/2,0,W-VW), 1-Math.pow(.001,dt));
+  cam.y=lerp(cam.y, clamp(player.y-VH/2,0,H-VH), 1-Math.pow(.001,dt));
+
+  // 旗標
+  if(G.quest===1) updateQuestUI();
+  updateHUD();
+}
+
+const cam={x:640,y:790};
+
+function updateEnemies(d){
+  const alive=enemies.filter(e=>e.state!=='dead');
+  const boss=alive.find(e=>e.type==='tombwraith') || alive.find(e=>e.type==='bogcrone' && !e.side);
+  if(boss&&boss.aggro&&!G.bossOn){ G.bossOn=true; document.getElementById('bossbar').classList.add('on'); }
+
+  for(const e of enemies){
+    if(e.state==='dead'){ e.deadT+=d; continue; }
+    e.flash=Math.max(0,e.flash-d);
+    e.stun=Math.max(0,e.stun-d);
+    if(e.burn>0){
+      e.burn-=d; e.hp-=7*d;
+      if(Math.random()<.3) spawnParticle(e.x+rand(-8,8),e.y+rand(-14,0),rand(-20,20),rand(-60,-10),.4,rand(1,3),'rgba(240,140,50,.7)',0,true);
+      if(e.hp<=0){ killEnemy(e); continue; }
+    }
+    if(e.cd>0) e.cd-=d;
+
+    const dd=dist(e,player);
+    if(dd<430) e.aggro=true;
+    if(!e.aggro){ e.state='idle'; continue; }
+
+    e.facing=Math.atan2(player.y-e.y, player.x-e.x);
+
+    if(e.stun>0){ e.state='stun'; continue; }
+
+    if(e.state==='windup'){
+      e.t+=d;
+      if(!e.hitDone && e.t>=e.windup){
+        e.hitDone=true;
+        // 命中判定
+        if(e.type==='bogcrone'||e.type==='tombwraith'){ // 近戰
+          if(dist(e,player)<e.range+player.r) hurtPlayer(e.dmg,e.x,e.y);
+        } else if(dist(e,player)<e.range+player.r+6){
+          hurtPlayer(e.dmg,e.x,e.y);
+        }
+      }
+      if(e.t>=e.windup+.18){ e.state='chase'; e.cd=e.cdMax; }
+      continue;
+    }
+
+    if(e.type==='bogcrone'){
+      e.rangedCd-=d;
+      if(e.rangedCd<=0 && dd<520){
+        e.rangedCd=rand(2.0,3.2);
+        // 吐出毒球
+        const a=Math.atan2(player.y-e.y,player.x-e.x);
+        projectiles.push({x:e.x+Math.cos(a)*20,y:e.y+Math.sin(a)*20,vx:Math.cos(a)*300,vy:Math.sin(a)*300,dmg:12,t:0,dead:false});
+        e.state='cast'; e.t=0;
+        continue;
+      }
+      if(e.state==='cast'){ e.t+=d; if(e.t>.4) e.state='chase'; continue; }
+      if(dd>e.range-6){ moveToward(e,player,e.speed,d); }
+      else if(e.cd<=0){ startWindup(e); }
+      continue;
+    }
+
+    // 夜泣：短距瞬移
+    if(e.type==='wisp'){
+      e.blinkCd-=d;
+      if(e.blinkCd<=0 && dd>110 && dd<520){
+        e.blinkCd=rand(3,4.5);
+        const a=Math.atan2(player.y-e.y,player.x-e.x)+rand(-.6,.6);
+        const nx=clamp(player.x+Math.cos(a)*rand(70,120),30,W-30);
+        const ny=clamp(player.y+Math.sin(a)*rand(70,120),30,H-30);
+        for(let i=0;i<16;i++) spawnParticle(e.x,e.y-10,rand(-70,70),rand(-70,10),rand(.3,.7),rand(1,3),'rgba(150,200,230,.55)',-20,true);
+        e.x=nx; e.y=ny; e.state='chase';
+        for(let i=0;i<16;i++) spawnParticle(e.x,e.y-10,rand(-70,70),rand(-70,10),rand(.3,.7),rand(1,3),'rgba(150,200,230,.55)',-20,true);
+        floatText(e.x,e.y-44,'瞬移','#a8c8e0');
+      }
+    }
+
+    // 墓中夜泣：瞬移 + 尖嘯
+    if(e.type==='tombwraith'){
+      e.blinkCd-=d;
+      if(e.blinkCd<=0 && dd>140 && dd<560){
+        e.blinkCd=rand(4,6);
+        const a=Math.atan2(player.y-e.y,player.x-e.x)+rand(-.8,.8);
+        const nx=clamp(player.x+Math.cos(a)*rand(110,160),30,W-30);
+        const ny=clamp(player.y+Math.sin(a)*rand(110,160),30,H-30);
+        for(let i=0;i<24;i++) spawnParticle(e.x,e.y-10,rand(-90,90),rand(-90,10),rand(.3,.8),rand(1,4),'rgba(150,200,240,.6)',-20,true);
+        e.x=nx; e.y=ny; e.state='chase';
+        for(let i=0;i<24;i++) spawnParticle(e.x,e.y-10,rand(-90,90),rand(-90,10),rand(.3,.8),rand(1,4),'rgba(150,200,240,.6)',-20,true);
+        floatText(e.x,e.y-60,'瞬移','#a8c8e0');
+      }
+      if(e.screamCd===undefined) e.screamCd=6;
+      e.screamCd-=d;
+      if(e.screamCd<=0 && dd<300){
+        e.screamCd=rand(7,9);
+        G.shake=Math.max(G.shake,12);
+        for(let i=0;i<60;i++){
+          const a=rand(0,TAU);
+          spawnParticle(e.x,e.y-20,Math.cos(a)*rand(120,420),Math.sin(a)*rand(120,420),rand(.3,.8),rand(1,4),'rgba(160,210,245,.5)',0,true);
+        }
+        if(dd<300){ player.stam=Math.max(0,player.stam-25); floatText(player.x,player.y-40,'尖嘯！','#a8c8e0'); }
+      }
+    }
+
+    // 狼人：撲擊 + 半血嚎叫
+    if(e.type==='werewolf'){
+      e.leapCd=(e.leapCd===undefined?2.6:e.leapCd)-d;
+      if(e.leapCd<=0 && dd>100 && dd<380){
+        e.leapCd=rand(2.8,4.2);
+        const a=Math.atan2(player.y-e.y,player.x-e.x);
+        e.x=clamp(player.x-Math.cos(a)*76,30,W-30);
+        e.y=clamp(player.y-Math.sin(a)*76,30,H-30);
+        for(let i=0;i<20;i++) spawnParticle(e.x,e.y-12,rand(-90,90),rand(-70,20),rand(.3,.7),rand(1,3),'rgba(160,120,90,.5)',-10,true);
+        floatText(e.x,e.y-56,'撲擊','#d8a070');
+      }
+      if(e.hp<e.maxHp*0.5 && !e.howled){ e.howled=true; e.speed*=1.25; e.cdMax*=0.85; toast('狼人嚎叫','牠變得更快'); }
+    }
+
+    // 小怪
+    if(dd>e.range-4){ moveToward(e,player,e.speed,d); e.state='chase'; }
+    else if(e.cd<=0){ startWindup(e); }
+    else {
+      // 側移
+      const a=Math.atan2(player.y-e.y,player.x-e.x)+Math.PI/2;
+      e.x+=Math.cos(a)*22*d*(e.seed%2?1:-1);
+      e.y+=Math.sin(a)*22*d*(e.seed%2?1:-1);
+    }
+  }
+
+  // 分離
+  for(let i=0;i<enemies.length;i++){
+    const a=enemies[i]; if(a.state==='dead') continue;
+    for(let j=i+1;j<enemies.length;j++){
+      const b=enemies[j]; if(b.state==='dead') continue;
+      const dx=b.x-a.x, dy=b.y-a.y, dd=Math.hypot(dx,dy);
+      const min=a.r+b.r+4;
+      if(dd<min&&dd>0.01){ const push=(min-dd)/2; a.x-=dx/dd*push; a.y-=dy/dd*push; b.x+=dx/dd*push; b.y+=dy/dd*push; }
+    }
+  }
+  for(const e of enemies){
+    if(e.state==='dead') continue;
+    const pdx=e.x-player.x, pdy=e.y-player.y, pdd=Math.hypot(pdx,pdy), pmin=e.r+player.r+1;
+    if(pdd<pmin&&pdd>0.01){ e.x=player.x+pdx/pdd*pmin; e.y=player.y+pdy/pdd*pmin; }
+    const q=resolveCircle(e.x,e.y,e.r);
+    e.x=clamp(q.x,20,W-20); e.y=clamp(q.y,20,H-20);
+  }
+
+  // 召喚
+  if(boss&&boss.hp<boss.maxHp*.5&&!boss.summoned){
+    boss.summoned=true;
+    if(boss.type==='tombwraith'){
+      for(let i=0;i<2;i++) enemies.push(spawnEnemy('wisp', boss.x+rand(-90,90), boss.y+rand(-70,70)));
+      toast('墓中夜泣召喚了夜泣');
+    } else {
+      for(let i=0;i<2;i++) enemies.push(spawnEnemy('bogdweller', boss.x+rand(-90,90), boss.y+rand(-70,70)));
+      toast('沼婆召喚了同伴');
+    }
+  }
+
+  if(G.bossOn&&boss&&boss.state==='dead'){ G.bossOn=false; document.getElementById('bossbar').classList.remove('on'); }
+}
+
+function startWindup(e){
+  e.state='windup'; e.t=0; e.hitDone=false;
+  if(e.type==='bogcrone') e.windup=.7;
+}
+function moveToward(e,target,speed,d){
+  const a=Math.atan2(target.y-e.y,target.x-e.x);
+  let sp=speed;
+  if(inWater(e.x,e.y)) sp*=.65;
+  e.x+=Math.cos(a)*sp*d;
+  e.y+=Math.sin(a)*sp*d;
+}
+
+/* ---- 小地圖 ---- */
+function drawMinimap(){
+  const mc=document.getElementById('minimap'); if(!mc) return;
+  const g=mc.getContext('2d'), w=mc.width, h=mc.height;
+  const sx=w/W, sy=h/H;
+  g.clearRect(0,0,w,h);
+  g.fillStyle='#0a1013'; g.fillRect(0,0,w,h);
+  g.fillStyle='#10241d';
+  g.beginPath(); g.ellipse(swamp.x*sx, swamp.y*sy, swamp.rx*sx, swamp.ry*sy, 0,0,TAU); g.fill();
+  g.strokeStyle='#3a3226'; g.lineWidth=2.5;
+  g.beginPath();
+  pathPts.forEach((p,i)=>{ if(i===0) g.moveTo(p[0]*sx,p[1]*sy); else g.lineTo(p[0]*sx,p[1]*sy); });
+  g.stroke();
+  g.fillStyle='#18251c';
+  for(const p of props){ if(p.kind==='tree') g.fillRect(p.x*sx-1, p.y*sy-1, 2, 2); }
+  g.fillStyle='#57432c';
+  for(const hut of huts) g.fillRect(hut.x*sx-hut.w*sx*.5, hut.y*sy-hut.h*sy*.5, hut.w*sx, hut.h*sy);
+  g.fillStyle='#6b5a3a'; g.fillRect(mill.x*sx-3, mill.y*sy-3, 6, 6);
+  g.fillStyle='#2f6b4a'; g.beginPath(); g.arc(nest.x*sx, nest.y*sy, 3, 0, TAU); g.fill();
+  if(G.quest>=6 && G.quest<=8){ g.fillStyle='#8ec8e8'; g.beginPath(); g.arc(shrinePos.x*sx, shrinePos.y*sy, 3, 0, TAU); g.fill(); }
+  g.fillStyle='#b3352f';
+  for(const e of enemies){
+    if(e.state==='dead') continue;
+    const r=e.type==='tombwraith'?3.5:(e.type==='wisp'?1.6:2);
+    g.fillRect(e.x*sx-r/2, e.y*sy-r/2, r, r);
+  }
+  g.fillStyle='#e8c974';
+  for(const n of npcs){ g.beginPath(); g.arc(n.x*sx, n.y*sy, 2, 0, TAU); g.fill(); }
+  let target=null;
+  if(G.quest===0||G.quest===8) target=npcs[0];
+  else if(G.quest===1||G.quest===2) target=mill;
+  else if(G.quest===3) target=nest;
+  else if(G.quest===4) target=npcs[1];
+  else if(G.quest===5) target=npcs[2];
+  else if(G.quest===6||G.quest===7) target=shrinePos;
+  if(target){
+    g.strokeStyle='#f0d9a0'; g.lineWidth=1.4;
+    g.beginPath(); g.arc(target.x*sx, target.y*sy, 4+Math.sin(G.time*4)*1.5, 0, TAU); g.stroke();
+  }
+  g.fillStyle='#f5efdd';
+  g.beginPath(); g.arc(player.x*sx, player.y*sy, 2.6, 0, TAU); g.fill();
+  g.strokeStyle='rgba(200,162,74,.45)'; g.lineWidth=1;
+  g.strokeRect(.5,.5,w-1,h-1);
+}
+
+/* =========================================================
+   12. 繪圖
+   ========================================================= */
+function worldToScreen(x,y){ return {x:x-cam.x, y:y-cam.y}; }
+
+function draw(){
+  const shakeX=(Math.random()-.5)*G.shake, shakeY=(Math.random()-.5)*G.shake;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,VW,VH);
+  if(G.mode==='dirs' && hasDirFrames()){
+    ctx.fillStyle='#0b0f13'; ctx.fillRect(0,0,VW,VH);
+    ctx.textAlign='center';
+    ctx.font='18px Georgia,serif'; ctx.fillStyle='#e8c974';
+    ctx.fillText('8 方向玩家 sprite · SDXL + rembg', VW/2, 58);
+    ctx.font='12px "Microsoft JhengHei",sans-serif'; ctx.fillStyle='#8d8673';
+    ctx.fillText('dir 0 = 東，順時針每 45° 一格；遊戲按 facing 自動選 frame，冇素材時 fallback 單張', VW/2, 82);
+    const labels=['E','SE','S','SW','W','NW','N','NE'];
+    for(let i=0;i<8;i++){
+      for(let fr=0; fr<2; fr++){
+        const im=dirFrame(i,fr); if(!im) continue;
+        const h=190, w=im.width/im.height*h;
+        const x=76+i*150, y=(fr===0?330:595);
+        ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x, y+6, w*.34, 8,0,0,TAU); ctx.fill();
+        ctx.drawImage(im, x-w/2, y-h, w, h);
+      }
+      ctx.font='12px "Microsoft JhengHei",sans-serif'; ctx.fillStyle='#c8a24a';
+      ctx.fillText(labels[i]+'  ('+i+')', 76+i*150, 330+28);
+    }
+    ctx.fillStyle='#8d8673'; ctx.font='11px "Microsoft JhengHei",sans-serif';
+    ctx.fillText('上：idle frame 0　　下：walk frame 1', VW/2, 106);
+    ctx.textAlign='left';
+    return;
+  }
+  ctx.save();
+  ctx.translate(shakeX,shakeY);
+
+  // 地面
+  ctx.drawImage(ground, -cam.x, -cam.y);
+
+  // 點擊移動標記
+  for(const c of G.clickFx){
+    const k=c.t/0.7, rr=8+22*k;
+    ctx.strokeStyle='rgba(232,201,116,'+(0.75*(1-k))+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(c.x-cam.x,c.y-cam.y,rr,rr*0.55,0,0,TAU); ctx.stroke();
+  }
+
+  // 地面 decals（簡單）
+  // 影子
+  const ents=[];
+  for(const p of props) ents.push(p);
+  for(const l of loot) ents.push({kind:'loot', x:l.x, y:l.y, item:l.item, bob:l.bob||0});
+  for(const n of npcs) ents.push(n);
+  for(const e of enemies) ents.push(e);
+  ents.push(player);
+
+  // 影子層
+  ctx.save();
+  for(const e of ents){
+    if(e.kind==='tree'||e.kind==='hut'||e.kind==='mill'||e.kind==='rock'||e.kind==='nest'||e.kind==='loot') continue;
+    let r= e===player?12:(e.r||12);
+    if(e.kind==='npc') r=11;
+    ctx.fillStyle='rgba(0,0,0,.32)';
+    ctx.beginPath(); ctx.ellipse(e.x-cam.x, e.y-cam.y+r*.45, r*1.05, r*.42, 0,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+
+  // y-sort
+  ents.sort((a,b)=>a.y-b.y);
+  for(const e of ents){
+    const sx=e.x-cam.x, sy=e.y-cam.y;
+    if(sx<-260||sx>VW+260||sy<-320||sy>VH+260) continue;
+    drawEntity(e,sx,sy);
+  }
+
+  // 目標鎖定環
+  if(player.target && player.target.state!=='dead'){
+    const t=player.target;
+    ctx.strokeStyle='rgba(232,120,90,.55)'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.ellipse(t.x-cam.x,t.y-cam.y+6,t.r*1.5,t.r*0.62,0,0,TAU); ctx.stroke();
+  }
+
+  // 投射物
+  for(const p of projectiles){
+    const sx=p.x-cam.x, sy=p.y-cam.y;
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(sx,sy,2,sx,sy,18);
+    g.addColorStop(0,'rgba(180,255,200,.9)'); g.addColorStop(1,'rgba(60,140,90,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,sy,18,0,TAU); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle='#9fe0b0'; ctx.beginPath(); ctx.arc(sx,sy,4.5,0,TAU); ctx.fill();
+  }
+
+  // 粒子
+  for(const q of particles){
+    const a=Math.max(0,q.life/q.max);
+    ctx.globalAlpha=a;
+    ctx.fillStyle=q.color;
+    if(q.add) ctx.globalCompositeOperation='lighter';
+    ctx.beginPath(); ctx.arc(q.x-cam.x,q.y-cam.y,q.size*(0.4+a*0.8),0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.globalAlpha=1;
+
+  // 浮字
+  for(const t of texts){
+    const a=1-t.t/t.life;
+    ctx.globalAlpha=Math.max(0,a);
+    ctx.font='600 15px "Microsoft JhengHei",sans-serif';
+    ctx.textAlign='center';
+    ctx.fillStyle=t.color;
+    ctx.shadowColor='rgba(0,0,0,.8)'; ctx.shadowBlur=6;
+    ctx.fillText(t.txt, t.x-cam.x, t.y-cam.y);
+    ctx.shadowBlur=0;
+  }
+  ctx.globalAlpha=1; ctx.textAlign='left';
+
+  // 任務標記
+  if(G.mode==='play'||G.mode==='dialog') drawQuestMarker();
+
+  // 霧
+  for(const f of fogs){
+    const sx=f.x-cam.x, sy=f.y-cam.y;
+    if(sx<-f.r||sx>VW+f.r||sy<-f.r||sy>VH+f.r) continue;
+    const g=ctx.createRadialGradient(sx,sy,0,sx,sy,f.r);
+    g.addColorStop(0,'rgba(190,205,200,'+f.a+')'); g.addColorStop(1,'rgba(190,205,200,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,sy,f.r,0,TAU); ctx.fill();
+  }
+
+  // 螢火蟲
+  for(const fl of flies){
+    const x=fl.x+Math.sin(G.time*.7+fl.t)*40, y=fl.y+Math.cos(G.time*.5+fl.t)*22;
+    const a=(Math.sin(G.time*2+fl.t)+1)/2;
+    const g=ctx.createRadialGradient(x-cam.x,y-cam.y,0,x-cam.x,y-cam.y,9);
+    g.addColorStop(0,'rgba(210,230,140,'+(.35*a)+')'); g.addColorStop(1,'rgba(210,230,140,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x-cam.x,y-cam.y,9,0,TAU); ctx.fill();
+  }
+
+  // 雨
+  if(G.rain>0){
+    ctx.strokeStyle='rgba(175,195,215,.18)'; ctx.lineWidth=1;
+    for(let i=0;i<70;i++){
+      const rx=(i*137.5 + (G.time*520)%VW)%VW;
+      const ry=(i*83.7 + (G.time*880)%VH)%VH;
+      ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx-2.5,ry+11); ctx.stroke();
+    }
+    for(let i=0;i<9;i++){
+      const t=(G.time*0.9+i*0.37)%1;
+      const sx=((i*211)%W)-cam.x, sy=((i*157)%H)-cam.y;
+      if(sx<0||sx>VW||sy<0||sy>VH) continue;
+      ctx.strokeStyle='rgba(170,190,200,'+(0.16*(1-t))+')'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.ellipse(sx,sy,4+t*14,2+t*6,0,0,TAU); ctx.stroke();
+    }
+  }
+
+  // 夜色
+  ctx.fillStyle='rgba(6,10,20,.30)'; ctx.fillRect(-20,-20,VW+40,VH+40);
+
+  // 光源
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  function glow(x,y,r,color){
+    const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,color); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+  }
+  glow(fire.x-cam.x, fire.y-cam.y, 300, 'rgba(220,140,60,.34)');
+  glow(player.x-cam.x, player.y-cam.y, 240, 'rgba(165,185,205,.24)');
+  glow(nest.x-cam.x, nest.y-cam.y, 220, 'rgba(90,160,110,.14)');
+  for(const p of props){
+    if(p.kind==='lantern') glow(p.x-cam.x, p.y-cam.y-20, 140, 'rgba(255,190,90,.20)');
+    else if(p.kind==='shrine') glow(p.x-cam.x, p.y-cam.y-8, 150, 'rgba(120,180,230,.15)');
+  }
+  ctx.restore();
+
+  // 月光（右上角柔光）
+  ctx.save();
+  const mg=ctx.createRadialGradient(1085,55,0,1085,55,330);
+  mg.addColorStop(0,'rgba(190,205,220,.10)'); mg.addColorStop(1,'rgba(190,205,220,0)');
+  ctx.fillStyle=mg; ctx.fillRect(740,0,540,380);
+  ctx.restore();
+
+  // 暗角
+  const vg=ctx.createRadialGradient(VW/2,VH/2,VH*.35,VW/2,VH/2,VH*.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.52)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH);
+
+  ctx.restore();
+
+  // 變身動畫覆蓋層
+  if(G.transform){
+    const tf=G.transform, k=Math.min(1, tf.t/tf.dur);
+    const sx=tf.x-cam.x, sy=tf.y-cam.y;
+    if(ASSETS.husband){
+      const hh=76*(0.92+0.18*k), ww=ASSETS.husband.width/ASSETS.husband.height*hh;
+      ctx.globalAlpha=0.15+0.85*k;
+      ctx.drawImage(ASSETS.husband, sx-ww/2, sy-hh*0.9, ww, hh);
+      ctx.globalAlpha=1;
+    }
+    const g=ctx.createRadialGradient(sx,sy-24,0,sx,sy-24,120);
+    g.addColorStop(0,'rgba(190,220,255,'+(0.4*(1-k))+')');
+    g.addColorStop(1,'rgba(190,220,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,sy-24,120,0,TAU); ctx.fill();
+  }
+  if(G.flash>0){ ctx.fillStyle='rgba(220,235,255,'+(G.flash*0.55)+')'; ctx.fillRect(0,0,VW,VH); }
+}
+
+function drawEntity(e,sx,sy){
+  switch(e.kind){
+    case 'tree': drawTree(e,sx,sy); break;
+    case 'rock': drawRock(e,sx,sy); break;
+    case 'reed': drawReed(e,sx,sy); break;
+    case 'hut': drawHut(e,sx,sy); break;
+    case 'mill': drawMill(e,sx,sy); break;
+    case 'nest': drawNest(e,sx,sy); break;
+    case 'fire': drawFire(e,sx,sy); break;
+    case 'bones': drawBones(e,sx,sy); break;
+    case 'signpost': drawSignpost(e,sx,sy); break;
+    case 'chest': drawChest(e,sx,sy); break;
+    case 'grave': drawGrave(e,sx,sy); break;
+    case 'loot': drawLoot(e,sx,sy); break;
+    case 'fence': drawFence(e,sx,sy); break;
+    case 'well': drawWell(e,sx,sy); break;
+    case 'cart': drawCart(e,sx,sy); break;
+    case 'barrel': drawBarrel(e,sx,sy); break;
+    case 'hay': drawHay(e,sx,sy); break;
+    case 'lantern': drawLantern(e,sx,sy); break;
+    case 'banner': drawBanner(e,sx,sy); break;
+    case 'shrine': drawShrine(e,sx,sy); break;
+    case 'pillar': drawPillar(e,sx,sy); break;
+    case 'deadtree': drawDeadTree(e,sx,sy); break;
+    case 'bush': drawBush(e,sx,sy); break;
+    case 'flower': drawFlower(e,sx,sy); break;
+    case 'mushroom': drawMushroom(e,sx,sy); break;
+    case 'board': drawBoard(e,sx,sy); break;
+    case 'wreck': drawWreck(e,sx,sy); break;
+    case 'crate': drawCrateProp(e,sx,sy); break;
+    case 'claw': drawClaw(e,sx,sy); break;
+    case 'lair': drawLair(e,sx,sy); break;
+    case 'npc': drawNPC(e,sx,sy); break;
+    case 'enemy': drawEnemy(e,sx,sy); break;
+    default:
+      if(e===player) drawPlayer(sx,sy);
+  }
+}
+
+function drawTree(t,sx,sy){
+  const sway=Math.sin(G.time*.6+t.sway)*2;
+  ctx.save();
+  ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(4,6,t.r*1.05,t.r*.38,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2a2016';
+  ctx.fillRect(-3,-t.r*.5,6,t.r*.55);
+  if(t.type==='pine'){
+    for(let k=0;k<3;k++){
+      const w=t.r*(1-k*.22), y=-t.r*.55-k*t.r*.55;
+      ctx.fillStyle=k%2?'#1c2f25':'#223a2d';
+      ctx.beginPath();
+      ctx.moveTo(-w, y+t.r*.45); ctx.lineTo(0, y-t.r*.5); ctx.lineTo(w, y+t.r*.45);
+      ctx.closePath(); ctx.fill();
+    }
+  } else {
+    const cx=sway, cy=-t.r*.9;
+    ctx.fillStyle='#20342a';
+    ctx.beginPath(); ctx.arc(cx-t.r*.35,cy+t.r*.18,t.r*.62,0,TAU); ctx.arc(cx+t.r*.32,cy+t.r*.1,t.r*.68,0,TAU); ctx.arc(cx,cy-t.r*.42,t.r*.66,0,TAU); ctx.fill();
+    ctx.fillStyle='rgba(64,96,70,.35)';
+    ctx.beginPath(); ctx.arc(cx-t.r*.25,cy-t.r*.15,t.r*.42,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawRock(r,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(3,3,r.r*1.05,r.r*.5,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3a3f3e'; ctx.beginPath();
+  ctx.moveTo(-r.r,0); ctx.lineTo(-r.r*.5,-r.r*.8); ctx.lineTo(r.r*.45,-r.r*.75); ctx.lineTo(r.r, -r.r*.1); ctx.lineTo(r.r*.5,r.r*.25); ctx.lineTo(-r.r*.5,r.r*.3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(120,130,125,.25)'; ctx.beginPath(); ctx.ellipse(-r.r*.2,-r.r*.45,r.r*.4,r.r*.22,0,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawReed(r,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.strokeStyle='rgba(70,92,64,.8)'; ctx.lineWidth=1.5;
+  for(let i=0;i<3;i++){
+    const a=-1.3+ i*.25 + Math.sin(G.time+r.seed)*.04;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(Math.sin(a)*6,-r.h*.6, Math.sin(a)*12,-r.h); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawHut(h,sx,sy){
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(h.rot);
+  const w=h.w, d=h.h;
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,d*.25,w*.62,w*.24,0,0,TAU); ctx.fill();
+  // 牆
+  ctx.fillStyle='#3a2e22'; ctx.fillRect(-w/2,-d/2,w,d*.8);
+  ctx.fillStyle='#241c15';
+  ctx.fillRect(-w*.18,-d*.1,w*.36,d*.5);
+  // 窗
+  const wg=ctx.createRadialGradient(w*.28,-d*.12,2,w*.28,-d*.12,26);
+  wg.addColorStop(0,'rgba(255,190,90,.9)'); wg.addColorStop(1,'rgba(255,190,90,0)');
+  ctx.fillStyle=wg; ctx.beginPath(); ctx.arc(w*.28,-d*.12,26,0,TAU); ctx.fill();
+  ctx.fillStyle='#ffcf7a'; ctx.fillRect(w*.24,-d*.18,10,12);
+  // 屋頂
+  ctx.fillStyle='#4c3a25';
+  ctx.beginPath(); ctx.moveTo(-w*.6,-d*.32); ctx.lineTo(0,-d*.82); ctx.lineTo(w*.6,-d*.32); ctx.lineTo(w*.52,-d*.18); ctx.lineTo(0,-d*.66); ctx.lineTo(-w*.52,-d*.18); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(20,14,9,.4)'; ctx.lineWidth=1;
+  for(let i=-3;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*w*.14,-d*.7+Math.abs(i)*3); ctx.lineTo(i*w*.18,-d*.26); ctx.stroke(); }
+  ctx.restore();
+}
+function drawMill(m,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.34)'; ctx.beginPath(); ctx.ellipse(0,m.h*.34,m.w*.6,m.h*.24,0,0,TAU); ctx.fill();
+  const w=m.w, h=m.h;
+  // 石塔
+  ctx.fillStyle='#403e36';
+  ctx.beginPath(); ctx.moveTo(-w*.36,h*.32); ctx.lineTo(-w*.27,-h*.34); ctx.lineTo(w*.27,-h*.34); ctx.lineTo(w*.36,h*.32); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(20,19,16,.45)'; ctx.lineWidth=1;
+  for(let i=0;i<6;i++){
+    const yy=-h*.3+i*h*.11;
+    ctx.beginPath(); ctx.moveTo(-w*.34,yy); ctx.lineTo(w*.34,yy); ctx.stroke();
+  }
+  for(let i=0;i<5;i++){
+    const xx=-w*.3+i*w*.15;
+    ctx.beginPath(); ctx.moveTo(xx,-h*.3); ctx.lineTo(xx+w*.02,h*.28); ctx.stroke();
+  }
+  // 屋頂
+  ctx.fillStyle='#4a3b27';
+  ctx.beginPath(); ctx.moveTo(-w*.42,-h*.3); ctx.lineTo(0,-h*.62); ctx.lineTo(w*.42,-h*.3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.moveTo(0,-h*.62); ctx.lineTo(w*.42,-h*.3); ctx.lineTo(w*.2,-h*.3); ctx.closePath(); ctx.fill();
+  // 門窗
+  ctx.fillStyle='#14120e'; ctx.beginPath(); ctx.moveTo(-14,h*.3); ctx.lineTo(-14,h*.06); ctx.quadraticCurveTo(0,-4,14,h*.06); ctx.lineTo(14,h*.3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,190,110,.5)'; ctx.fillRect(-w*.1,-h*.18,10,12);
+  // 葉片
+  const a=G.time*.45;
+  ctx.save(); ctx.translate(0,-h*.34);
+  ctx.fillStyle='#241d14'; ctx.beginPath(); ctx.arc(0,0,7,0,TAU); ctx.fill();
+  for(let i=0;i<4;i++){
+    ctx.save(); ctx.rotate(a+i*Math.PI/2);
+    ctx.fillStyle='rgba(84,68,46,.95)'; ctx.fillRect(-4,-w*.52,8,w*.52);
+    ctx.strokeStyle='rgba(40,30,18,.7)'; ctx.lineWidth=1;
+    for(let k=1;k<=4;k++){ const yy=-k*w*.115; ctx.beginPath(); ctx.moveTo(-8,yy); ctx.lineTo(8,yy); ctx.stroke(); }
+    ctx.strokeStyle='rgba(140,115,76,.5)'; ctx.beginPath(); ctx.moveTo(-8,-w*.52); ctx.lineTo(8,-w*.52); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.restore();
+}
+function drawNest(n,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,8,n.r*1.1,n.r*.5,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#22301f'; ctx.beginPath(); ctx.ellipse(0,0,n.r,n.r*.62,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2c3d27';
+  for(let i=0;i<9;i++){ const a=i/9*TAU; ctx.beginPath(); ctx.arc(Math.cos(a)*n.r*.55,Math.sin(a)*n.r*.3,7,0,TAU); ctx.fill(); }
+  // 蛋
+  for(let i=0;i<3;i++){
+    const x=-14+i*14, y=-4+Math.sin(i)*4;
+    const g=ctx.createRadialGradient(x,y,1,x,y,8);
+    g.addColorStop(0,'rgba(150,230,170,.9)'); g.addColorStop(1,'rgba(60,120,80,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,8,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawFire(f,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='#26221b';
+  for(let i=0;i<7;i++){ const a=i/7*TAU; ctx.beginPath(); ctx.ellipse(Math.cos(a)*16,Math.sin(a)*8,7,4,0,0,TAU); ctx.fill(); }
+  const fl=Math.sin(G.time*7)*4;
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(0,-6,2,0,-6,34+fl);
+  g.addColorStop(0,'rgba(255,220,140,.95)'); g.addColorStop(.4,'rgba(250,150,50,.75)'); g.addColorStop(1,'rgba(200,80,20,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,-6,20+fl*.4,30+fl,0,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  if(Math.random()<.5) spawnParticle(f.x+rand(-6,6), f.y-10, rand(-8,8), rand(-40,-15), rand(.5,1.1), rand(1,2.5), 'rgba(250,160,60,.65)', 0, true);
+  ctx.restore();
+}
+function drawBones(b,sx,sy){
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(b.rot);
+  ctx.strokeStyle='rgba(180,172,150,.55)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-b.r,0); ctx.lineTo(b.r,0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-b.r-2,0,2.2,0,TAU); ctx.arc(b.r+2,0,2.2,0,TAU); ctx.fillStyle='rgba(180,172,150,.5)'; ctx.fill();
+  ctx.restore();
+}
+function drawSignpost(s,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='#2a2117'; ctx.fillRect(-2,-34,4,40);
+  ctx.fillStyle='#3b2f20'; ctx.beginPath(); ctx.moveTo(-26,-30); ctx.lineTo(20,-30); ctx.lineTo(26,-23); ctx.lineTo(20,-16); ctx.lineTo(-26,-16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(200,170,110,.5)'; ctx.font='9px sans-serif'; ctx.fillText('磨坊', -18, -20);
+  ctx.restore();
+}
+
+/* ---- 角色 ---- */
+function drawGrave(g,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.30)'; ctx.beginPath(); ctx.ellipse(0,6,14,5,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#4a4f4c';
+  ctx.beginPath(); ctx.moveTo(-10,6); ctx.lineTo(-9,-14); ctx.quadraticCurveTo(0,-25,9,-14); ctx.lineTo(10,6); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(20,24,22,.55)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,-17); ctx.lineTo(0,-2); ctx.moveTo(-5,-11); ctx.lineTo(5,-11); ctx.stroke();
+  ctx.fillStyle='rgba(120,150,130,.14)'; ctx.beginPath(); ctx.ellipse(0,-2,7,12,0,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawChest(c,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.30)'; ctx.beginPath(); ctx.ellipse(0,6,18,6,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3b2a17'; ctx.fillRect(-16,-8,32,18);
+  ctx.fillStyle=chestOpened?'#2a1d10':'#4a3219';
+  if(chestOpened) ctx.fillRect(-16,-20,32,9); else ctx.fillRect(-16,-14,32,8);
+  ctx.strokeStyle='#c8a24a'; ctx.lineWidth=1.2; ctx.strokeRect(-16,-8,32,18);
+  ctx.fillStyle='#c8a24a'; ctx.fillRect(-3,-2,6,6);
+  if(!chestOpened){
+    const g=ctx.createRadialGradient(0,-4,0,0,-4,28);
+    g.addColorStop(0,'rgba(232,201,116,.18)'); g.addColorStop(1,'rgba(232,201,116,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-4,28,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawLoot(l,sx,sy){
+  const bob=Math.sin(G.time*3+(l.bob||0))*3;
+  ctx.save(); ctx.translate(sx, sy+bob);
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(0,-10,0,0,-10,32);
+  g.addColorStop(0,'rgba(232,201,116,.5)'); g.addColorStop(1,'rgba(232,201,116,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-10,32,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  if(l.item==='silver_sword'){
+    ctx.strokeStyle='#dfe6ea'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(0,-26); ctx.lineTo(0,-4); ctx.stroke();
+    ctx.strokeStyle='#c8a24a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-7,-1); ctx.lineTo(7,-1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-1); ctx.lineTo(0,8); ctx.stroke();
+  } else if(l.item==='wolf_armor'){
+    ctx.fillStyle='#6b5a3a';
+    ctx.beginPath(); ctx.moveTo(0,-24); ctx.lineTo(12,-14); ctx.lineTo(9,7); ctx.lineTo(0,14); ctx.lineTo(-9,7); ctx.lineTo(-12,-14); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='#c8a24a'; ctx.lineWidth=1.2; ctx.stroke();
+  } else {
+    ctx.fillStyle='#a8c8e0'; ctx.beginPath(); ctx.arc(0,-10,6,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawFence(f,sx,sy){
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(f.rot||0);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0,4,34,6,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='#3b2f21'; ctx.lineWidth=3;
+  for(const px of [-30,-10,10,30]){
+    ctx.strokeStyle='#3a2e20';
+    ctx.beginPath(); ctx.moveTo(px,2); ctx.lineTo(px,-24); ctx.stroke();
+  }
+  ctx.strokeStyle='#4a3826'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-34,-18); ctx.lineTo(34,-18); ctx.moveTo(-34,-9); ctx.lineTo(34,-9); ctx.stroke();
+  ctx.restore();
+}
+function drawWell(w,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,6,24,8,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#4a4e4a'; ctx.beginPath(); ctx.ellipse(0,0,20,12,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#141a18'; ctx.beginPath(); ctx.ellipse(0,-1,15,8,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='#3a2e20'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-16,-2); ctx.lineTo(-14,-34); ctx.moveTo(16,-2); ctx.lineTo(14,-34); ctx.stroke();
+  ctx.fillStyle='#4a3a25'; ctx.beginPath(); ctx.moveTo(-22,-32); ctx.lineTo(0,-44); ctx.lineTo(22,-32); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6b5a3a'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,-30); ctx.lineTo(0,-14); ctx.stroke();
+  ctx.fillStyle='#5a4a33'; ctx.fillRect(-3,-14,6,7);
+  ctx.restore();
+}
+function drawCart(c,sx,sy){
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(c.rot||0);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,6,32,8,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3a2b1c'; ctx.fillRect(-24,-14,48,14);
+  ctx.strokeStyle='#2a1f14'; ctx.lineWidth=3; ctx.strokeRect(-24,-14,48,14);
+  ctx.fillStyle='#241a10';
+  for(const wx of [-16,16]){
+    ctx.beginPath(); ctx.arc(wx,4,8,0,TAU); ctx.fill();
+    ctx.strokeStyle='#5a4630'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.arc(wx,4,8,0,TAU); ctx.stroke();
+  }
+  ctx.strokeStyle='#4a3826'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(24,-8); ctx.lineTo(40,-16); ctx.stroke();
+  ctx.restore();
+}
+function drawBarrel(b,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0,3,11,4,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3f2f1c'; ctx.beginPath(); ctx.ellipse(0,-8,9,11,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='#6b5537'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.ellipse(0,-8,9,11,0,0,TAU); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-9,-12); ctx.lineTo(9,-12); ctx.moveTo(-9,-4); ctx.lineTo(9,-4); ctx.stroke();
+  ctx.restore();
+}
+function drawHay(h,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0,4,20,6,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#6b5a2c'; ctx.beginPath(); ctx.ellipse(0,-6,20,12,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(180,160,90,.4)'; ctx.lineWidth=1;
+  for(let i=-3;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*5,-14); ctx.lineTo(i*5+3,2); ctx.stroke(); }
+  ctx.restore();
+}
+function drawLantern(l,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0,3,8,3,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2c2418'; ctx.fillRect(-2.5,-40,5,42);
+  ctx.strokeStyle='#2c2418'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,-40); ctx.lineTo(10,-34); ctx.stroke();
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(10,-28,0,10,-28,20);
+  g.addColorStop(0,'rgba(255,200,110,.8)'); g.addColorStop(1,'rgba(255,200,110,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(10,-28,20,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#f0d08a'; ctx.fillRect(6,-32,8,10);
+  ctx.strokeStyle='#3a2e1c'; ctx.lineWidth=1; ctx.strokeRect(6,-32,8,10);
+  ctx.restore();
+}
+function drawBanner(b,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(0,3,6,3,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3a2c1c'; ctx.fillRect(-2,-52,4,55);
+  ctx.fillStyle='#5a2626';
+  ctx.beginPath(); ctx.moveTo(2,-50); ctx.lineTo(26,-46); ctx.lineTo(26,-18); ctx.lineTo(14,-24); ctx.lineTo(2,-16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#c8a24a'; ctx.beginPath(); ctx.arc(14,-34,4,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawShrine(s,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0,6,26,8,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#464c48'; ctx.fillRect(-22,-6,44,10);
+  ctx.fillStyle='#3c423e'; ctx.fillRect(-16,-38,8,32); ctx.fillRect(8,-38,8,32);
+  ctx.fillStyle='#525a54'; ctx.fillRect(-20,-46,40,9);
+  const pulse=.55+Math.sin(G.time*2)*.2;
+  ctx.strokeStyle='rgba(140,200,240,'+pulse+')'; ctx.lineWidth=2;
+  ctx.strokeRect(-7,-32,14,20);
+  ctx.globalCompositeOperation='lighter';
+  const g=ctx.createRadialGradient(0,-22,0,0,-22,34);
+  g.addColorStop(0,'rgba(130,190,235,.35)'); g.addColorStop(1,'rgba(130,190,235,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-22,34,0,TAU); ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#e8d8a8'; ctx.fillRect(-13,-1,3,6); ctx.fillRect(10,-1,3,6);
+  ctx.restore();
+}
+function drawPillar(p,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,4,16,6,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#4a4a42'; ctx.fillRect(-9,-34,18,38);
+  ctx.fillStyle='#3a3a33'; ctx.fillRect(-12,-36,24,6);
+  ctx.fillStyle='rgba(130,140,130,.25)'; ctx.fillRect(-6,-30,4,26);
+  ctx.fillStyle='#565248'; ctx.beginPath();
+  ctx.moveTo(-9,-34); ctx.lineTo(-4,-44); ctx.lineTo(3,-40); ctx.lineTo(7,-46); ctx.lineTo(9,-34); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawDeadTree(t,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,4,16,5,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='#2a241c'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(0,4); ctx.lineTo(-4,-40); ctx.stroke();
+  ctx.lineWidth=2;
+  const branches=[[-4,-18,-22,-34],[-4,-26,12,-46],[-6,-34,-18,-54],[-2,-40,8,-58]];
+  for(const b of branches){ ctx.beginPath(); ctx.moveTo(b[0],b[1]); ctx.lineTo(b[2],b[3]); ctx.stroke(); }
+  ctx.restore();
+}
+function drawBush(b,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='#1e2f22';
+  ctx.beginPath(); ctx.arc(-5,-2,b.r,0,TAU); ctx.arc(4,-4,b.r*.9,0,TAU); ctx.arc(0,-8,b.r*.8,0,TAU); ctx.fill();
+  ctx.fillStyle='rgba(70,100,70,.35)';
+  ctx.beginPath(); ctx.arc(-2,-7,b.r*.5,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawFlower(f,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.strokeStyle='rgba(70,90,60,.8)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-6); ctx.stroke();
+  ctx.fillStyle=f.seed>50?'#c8a2b8':'#e0d08a';
+  for(let i=0;i<4;i++){ const a=i/4*TAU; ctx.beginPath(); ctx.arc(Math.cos(a)*2,-6+Math.sin(a)*2,1.6,0,TAU); ctx.fill(); }
+  ctx.restore();
+}
+function drawMushroom(m,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='#d8d0b8'; ctx.fillRect(-1,-4,2,5);
+  ctx.fillStyle='#8a2f2f'; ctx.beginPath(); ctx.ellipse(0,-5,4,2.6,0,0,TAU); ctx.fill();
+  ctx.fillStyle='rgba(240,230,210,.7)'; ctx.beginPath(); ctx.arc(-1,-5.5,.8,0,TAU); ctx.fill();
+  ctx.restore();
+}
+
+
+function drawBoard(b,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,4,22,6,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='#3a2c1c'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-16,2); ctx.lineTo(-14,-40); ctx.moveTo(16,2); ctx.lineTo(14,-40); ctx.stroke();
+  ctx.fillStyle='#4a3826'; ctx.fillRect(-22,-46,44,26);
+  ctx.strokeStyle='#2a1f14'; ctx.lineWidth=1; ctx.strokeRect(-22,-46,44,26);
+  ctx.fillStyle='#d8cfae'; ctx.fillRect(-16,-42,12,10); ctx.fillRect(2,-40,14,12);
+  ctx.fillStyle='#8a2f2f'; ctx.font='7px sans-serif'; ctx.fillText('委託', -15, -34);
+  ctx.fillStyle='#3a5a6a'; ctx.fillText('失蹤', 3, -33);
+  ctx.restore();
+}
+function drawWreck(w,sx,sy){
+  ctx.save(); ctx.translate(sx,sy); ctx.rotate(w.rot||0);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(0,6,34,9,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#3a2b1c'; ctx.beginPath();
+  ctx.moveTo(-22,-4); ctx.lineTo(10,-10); ctx.lineTo(24,2); ctx.lineTo(2,10); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#241a10'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(-18,6,9,0,TAU); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8,-8); ctx.lineTo(26,-18); ctx.stroke();
+  ctx.fillStyle='#4a3826'; ctx.fillRect(-6,-14,20,4);
+  ctx.restore();
+}
+function drawCrateProp(c,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,3,12,4,0,0,TAU); ctx.fill();
+  if(c.taken){
+    ctx.fillStyle='#3a2c1c'; ctx.fillRect(-10,-6,20,8);
+    ctx.strokeStyle='#5a4630'; ctx.lineWidth=1; ctx.strokeRect(-10,-6,20,8);
+  } else {
+    ctx.fillStyle='#4a3826'; ctx.fillRect(-10,-14,20,16);
+    ctx.strokeStyle='#2a1f14'; ctx.lineWidth=1; ctx.strokeRect(-10,-14,20,16);
+    ctx.strokeStyle='#8a6a3a'; ctx.beginPath(); ctx.moveTo(-10,-10); ctx.lineTo(10,-10); ctx.moveTo(-10,-5); ctx.lineTo(10,-5); ctx.stroke();
+    if(G.side.stage===1){
+      ctx.globalCompositeOperation='lighter';
+      const g=ctx.createRadialGradient(0,-8,0,0,-8,24);
+      g.addColorStop(0,'rgba(232,201,116,.35)'); g.addColorStop(1,'rgba(232,201,116,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-8,24,0,TAU); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+    }
+  }
+  ctx.restore();
+}
+
+function drawClaw(c,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.strokeStyle = c.taken ? 'rgba(90,60,50,.30)' : 'rgba(150,60,50,.75)';
+  ctx.lineWidth=2.2;
+  for(let i=0;i<3;i++){
+    ctx.beginPath(); ctx.moveTo(-14+i*7,-12); ctx.quadraticCurveTo(-6+i*7,0,-2+i*7,12); ctx.stroke();
+  }
+  ctx.fillStyle='rgba(90,30,30,.22)';
+  ctx.beginPath(); ctx.ellipse(0,13,16,5,0,0,TAU); ctx.fill();
+  if(!c.taken && G.were.stage===1){
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(0,0,0,0,0,26);
+    g.addColorStop(0,'rgba(200,110,90,.30)'); g.addColorStop(1,'rgba(200,110,90,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,26,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.restore();
+}
+function drawLair(l,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(0,6,34,10,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#2a211a'; ctx.beginPath(); ctx.ellipse(0,0,30,16,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#15100c'; ctx.beginPath(); ctx.ellipse(0,-2,20,10,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(190,180,150,.5)'; ctx.lineWidth=2;
+  for(let i=0;i<5;i++){
+    const a=-1.1+i*0.55;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a)*10, Math.sin(a)*4); ctx.lineTo(Math.cos(a)*26, Math.sin(a)*10); ctx.stroke();
+  }
+  const w=enemies.find(e=>e.type==='werewolf' && e.state!=='dead');
+  if(w){
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(0,-4,0,0,-4,30);
+    g.addColorStop(0,'rgba(200,80,60,.22)'); g.addColorStop(1,'rgba(200,80,60,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-4,30,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+  ctx.restore();
+}
+function drawSprite(key, x, y, h, flip, alpha, flash, anchor){
+  const im=ASSETS[key];
+  if(!im || !im.width) return false;
+  const w=im.width/im.height*h;
+  const a=anchor==null?0.90:anchor;
+  ctx.save(); ctx.translate(x,y);
+  if(flip) ctx.scale(-1,1);
+  // 角色輪廓光（主角 / Boss）
+  if((key==='hero'||key==='tombwraith') && !flash){
+    ctx.save();
+    ctx.filter='brightness(2.4) blur(3px)';
+    ctx.globalAlpha=.18;
+    ctx.drawImage(im, -w/2, -h*a, w, h);
+    ctx.restore();
+  }
+  if(flash) ctx.filter='brightness(1.8) saturate(1.35)';
+  ctx.globalAlpha=(alpha==null?1:alpha);
+  ctx.drawImage(im, -w/2, -h*a, w, h);
+  ctx.filter='none'; ctx.globalAlpha=1; ctx.restore();
+  return true;
+}
+
+function dirIndexFor(ang){
+  const i = Math.round(ang / (Math.PI/4));
+  return ((i % 8) + 8) % 8;
+}
+function hasDirFrames(){
+  if(!G.useDirs) return false;
+  for(let i=0;i<8;i++){ if(!(ASSETS['dir'+i+'_0'] || ASSETS['dir'+i])) return false; }
+  return true;
+}
+function dirFrame(i,f){
+  return ASSETS['dir'+i+'_'+f] || ASSETS['dir'+i+'_0'] || ASSETS['dir'+i] || null;
+}
+function drawPlayer(sx,sy){
+  if(hasDirFrames()){
+    const idx=dirIndexFor(player.facing);
+    player.dirIdx=idx;
+    const f = player.moving ? (Math.floor(G.time*9)%2) : 0;
+    const im=dirFrame(idx,f) || ASSETS['dir'+idx];
+    const h=84, w=im.width/im.height*h;
+    const bob=player.moving ? Math.sin(G.time*18)*1.6 : Math.sin(G.time*2)*0.6;
+    ctx.save(); ctx.translate(sx, sy+bob);
+    ctx.save(); ctx.filter='brightness(2.2) blur(3px)'; ctx.globalAlpha=.14;
+    ctx.drawImage(im,-w/2,-h*.9,w,h); ctx.restore();
+    if(player.hurtFlash>0) ctx.filter='brightness(1.7) saturate(1.3)';
+    ctx.drawImage(im,-w/2,-h*.9,w,h);
+    ctx.filter='none'; ctx.restore();
+  } else if(ASSETS.hero){
+    const bob=Math.sin(player.walk*1.2)*1.4;
+    drawSprite('hero', sx, sy+bob, 84, Math.cos(player.facing)<0, 1, player.hurtFlash>0, .90);
+  } else {
+    const walk=Math.sin(player.walk)*3;
+    ctx.save(); ctx.translate(sx,sy);
+    // 披風
+    ctx.save(); ctx.rotate(player.facing+Math.PI/2);
+    ctx.scale(1.35,1.35);
+    ctx.fillStyle='rgba(18,20,22,.9)';
+    ctx.beginPath(); ctx.ellipse(0,4,13,18,0,0,TAU); ctx.fill();
+    // 劍
+    ctx.strokeStyle='#8d8f90'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(-8,-2); ctx.lineTo(-12,-22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6,-2); ctx.lineTo(10,-20); ctx.stroke();
+    ctx.strokeStyle='#5c4a2c'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-9,-3); ctx.lineTo(-8,-9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(7,-3); ctx.lineTo(6,-9); ctx.stroke();
+    // 身體
+    ctx.fillStyle='#343a40';
+    ctx.beginPath(); ctx.ellipse(0,0,11,14,0,0,TAU); ctx.fill();
+    // 肩甲
+    ctx.fillStyle='#4a5058';
+    ctx.beginPath(); ctx.ellipse(-9,-4,5.5,4.2,0,0,TAU); ctx.ellipse(9,-4,5.5,4.2,0,0,TAU); ctx.fill();
+    // 頭
+    ctx.fillStyle='#d2bda4'; ctx.beginPath(); ctx.arc(0,-11,5.8,0,TAU); ctx.fill();
+    // 白髮
+    ctx.fillStyle='#e7e4da'; ctx.beginPath(); ctx.arc(0,-12,5.6,Math.PI*.15,Math.PI*.85); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-4,-11); ctx.lineTo(-5,-4); ctx.lineTo(-2,-10); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(4,-11); ctx.lineTo(5,-5); ctx.lineTo(2,-10); ctx.fill();
+    // 腿
+    ctx.strokeStyle='#22252a'; ctx.lineWidth=3.5;
+    ctx.beginPath(); ctx.moveTo(-4,8); ctx.lineTo(-4+walk,17); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4,8); ctx.lineTo(4-walk,17); ctx.stroke();
+    // 邊光
+    ctx.strokeStyle='rgba(190,210,235,.22)'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.ellipse(0,0,11,14,0,0,TAU); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+  }
+  drawPlayerFx(sx,sy);
+}
+
+function drawPlayerFx(sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  // 攻擊弧
+  if(player.atk){
+    const a=player.atk, k=Math.min(1,a.t/a.dur);
+    const s=k<.5? k*2 : (1-k)*2;
+    ctx.save(); ctx.rotate(player.facing);
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(0,0,20,0,0,a.range);
+    g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(.7,'rgba(230,240,255,'+(0.35*s)+')'); g.addColorStop(1,'rgba(180,210,255,0)');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(0,0,a.range,-a.arc/2,a.arc/2); ctx.lineTo(0,0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,'+(0.7*s)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,a.range*.92,-a.arc/2,a.arc/2); ctx.stroke();
+    ctx.restore();
+  }
+  // 盾印
+  if(player.shield>0){
+    const pulse=.5+Math.sin(G.time*8)*.1;
+    ctx.strokeStyle='rgba(232,201,116,'+pulse+')'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(0,-6,26,0,TAU); ctx.stroke();
+    ctx.fillStyle='rgba(232,201,116,.06)'; ctx.beginPath(); ctx.arc(0,-6,26,0,TAU); ctx.fill();
+  }
+  // 受傷閃
+  if(player.hurtFlash>0){ ctx.fillStyle='rgba(255,80,80,'+(player.hurtFlash*.35)+')'; ctx.beginPath(); ctx.arc(0,-8,22,0,TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawNPC(n,sx,sy){
+  ctx.save(); ctx.translate(sx,sy);
+  const key = n.id==='elder' ? 'elder' : (n.id==='hunter' ? 'hunter' : (n.id==='smith' ? 'blacksmith' : (n.id==='widow' ? 'widow' : (n.id==='husband' ? 'husband' : 'fisherman'))));
+  if(!drawSprite(key, 0, 0, 70, Math.cos(n.facing)<0, 1, false, .90)){
+    ctx.save(); ctx.rotate(n.facing+Math.PI/2);
+    ctx.scale(1.15,1.15);
+    ctx.fillStyle=n.color;
+    ctx.beginPath(); ctx.ellipse(0,0,10,13,0,0,TAU); ctx.fill();
+    ctx.fillStyle='#d8c2a8'; ctx.beginPath(); ctx.arc(0,-10,5.6,0,TAU); ctx.fill();
+    ctx.fillStyle='#4a3b28'; ctx.beginPath(); ctx.arc(0,-11,6,Math.PI,TAU); ctx.fill();
+    if(n.id==='elder'){
+      ctx.strokeStyle='#7a5a30'; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(9,-2); ctx.lineTo(13,17); ctx.stroke();
+      ctx.globalCompositeOperation='lighter';
+      const g=ctx.createRadialGradient(9,-4,0,9,-4,16);
+      g.addColorStop(0,'rgba(255,200,110,.55)'); g.addColorStop(1,'rgba(255,200,110,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(9,-4,16,0,TAU); ctx.fill();
+      ctx.globalCompositeOperation='source-over';
+      ctx.fillStyle='#f0d08a'; ctx.beginPath(); ctx.arc(9,-4,2.6,0,TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // 任務 NPC 光環
+  if((G.quest===0||G.quest===3) && n.id==='elder'){
+    const rr=18+Math.sin(G.time*2.4)*2;
+    ctx.strokeStyle='rgba(232,201,116,.30)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(0,15,rr,rr*.42,0,0,TAU); ctx.stroke();
+  }
+  // 名字
+  if((G.mode==='play'||G.mode==='dialog') && dist(player,n)<260){
+    ctx.font='11px "Microsoft JhengHei",sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle='rgba(232,201,116,.65)'; ctx.fillText(n.name,0,-26); ctx.textAlign='left';
+  }
+  ctx.restore();
+}
+
+function drawEnemy(e,sx,sy){
+  if(e.state==='dead'){
+    const a=Math.max(0,1-e.deadT/1.2);
+    if(a<=0) return;
+    ctx.globalAlpha=a;
+    ctx.fillStyle=e.type==='bogcrone'?'#2c1a1a':'#243028';
+    ctx.beginPath(); ctx.ellipse(sx,sy+6,e.r*1.2,e.r*.5,0,0,TAU); ctx.fill();
+    ctx.globalAlpha=1;
+    return;
+  }
+  ctx.save(); ctx.translate(sx,sy);
+  const flash=e.flash>0;
+  const sizes={bogcrone:106, gnawer:54, bogdweller:50, wisp:60, tombwraith:126, werewolf:104};
+  const a0 = e.type==='wisp'?0.8:(e.type==='tombwraith'?0.92:1);
+  const drawn = ASSETS[e.type] && drawSprite(e.type, 0, 0, sizes[e.type]||52, Math.cos(e.facing)<0, a0, flash, .90);
+  if(!drawn){
+    ctx.save(); ctx.rotate(e.facing+Math.PI/2);
+    const sc = e.type==='tombwraith'?1.9:(e.type==='werewolf'?1.5:(e.type==='bogcrone'?1.35:(e.type==='gnawer'?1.1:1.12)));
+    ctx.scale(sc,sc);
+    if(e.type==='werewolf'){
+      ctx.globalAlpha=.95;
+      ctx.fillStyle=flash?'#e8d8c8':'#5a4a3a';
+      ctx.beginPath(); ctx.ellipse(0,2,18,24,0,0,TAU); ctx.fill();
+      ctx.fillStyle=flash?'#f0e0d0':'#6b5a44';
+      ctx.beginPath(); ctx.ellipse(0,-22,12,11,0,0,TAU); ctx.fill();
+      ctx.fillStyle='#3a2e22';
+      ctx.beginPath(); ctx.moveTo(-11,-24); ctx.lineTo(-16,-40); ctx.lineTo(-5,-30); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(11,-24); ctx.lineTo(16,-40); ctx.lineTo(5,-30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#d8b060'; ctx.beginPath(); ctx.arc(-4,-24,1.8,0,TAU); ctx.arc(4,-24,1.8,0,TAU); ctx.fill();
+      ctx.fillStyle='#e8e0d0'; ctx.beginPath(); ctx.moveTo(-6,-18); ctx.lineTo(-4,-14); ctx.lineTo(-2,-18); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(2,-18); ctx.lineTo(4,-14); ctx.lineTo(6,-18); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#3a2e22'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(-14,10); ctx.lineTo(-20,24); ctx.moveTo(14,10); ctx.lineTo(20,24); ctx.stroke();
+      ctx.globalAlpha=1;
+    } else if(e.type==='tombwraith'){
+      ctx.globalAlpha=.9;
+      ctx.fillStyle=flash?'#eaf8ff':'#5f7f92';
+      ctx.beginPath(); ctx.ellipse(0,-2,20,30,0,0,TAU); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-20,10); ctx.lineTo(-28,52); ctx.lineTo(-10,32); ctx.lineTo(0,58); ctx.lineTo(10,32); ctx.lineTo(28,52); ctx.lineTo(20,10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#cfe6f2'; ctx.beginPath(); ctx.arc(0,-30,11,0,TAU); ctx.fill();
+      ctx.fillStyle='#1c2a34'; ctx.beginPath(); ctx.arc(0,-36,13,Math.PI,TAU); ctx.fill();
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#d8f4ff'; ctx.beginPath(); ctx.arc(-4,-30,2.6,0,TAU); ctx.arc(4,-30,2.6,0,TAU); ctx.fill();
+      ctx.strokeStyle='rgba(150,210,245,.7)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(-16,-4); ctx.lineTo(-30,20); ctx.moveTo(16,-4); ctx.lineTo(30,20); ctx.stroke();
+    } else if(e.type==='bogcrone'){
+      ctx.fillStyle='#2e2230'; ctx.beginPath(); ctx.ellipse(0,2,17,24,0,0,TAU); ctx.fill();
+      ctx.fillStyle='#3d2b3f'; ctx.beginPath(); ctx.ellipse(0,-4,14,18,0,0,TAU); ctx.fill();
+      ctx.fillStyle='#b8c6a0'; ctx.beginPath(); ctx.arc(0,-16,8,0,TAU); ctx.fill();
+      ctx.fillStyle='#1c141e'; ctx.beginPath(); ctx.arc(0,-18,9,Math.PI,TAU); ctx.fill();
+      ctx.fillStyle='#9fe0b0'; ctx.beginPath(); ctx.arc(-3,-16,1.8,0,TAU); ctx.arc(3,-16,1.8,0,TAU); ctx.fill();
+      ctx.strokeStyle='#5a4630'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(14,10); ctx.lineTo(18,-22); ctx.stroke();
+      const g=ctx.createRadialGradient(18,-24,0,18,-24,10);
+      g.addColorStop(0,'rgba(150,240,170,.9)'); g.addColorStop(1,'rgba(60,140,90,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(18,-24,10,0,TAU); ctx.fill();
+    } else if(e.type==='gnawer'){
+      ctx.fillStyle=flash?'#d8b0a0':'#5b5346';
+      ctx.beginPath(); ctx.ellipse(0,0,11,14,0,0,TAU); ctx.fill();
+      ctx.fillStyle=flash?'#f0d0c0':'#6e6555'; ctx.beginPath(); ctx.arc(0,-11,6.5,0,TAU); ctx.fill();
+      ctx.fillStyle='#3a332b'; ctx.beginPath(); ctx.arc(0,-13,7,Math.PI,TAU); ctx.fill();
+      ctx.fillStyle='#e0c060'; ctx.beginPath(); ctx.arc(-2.6,-11,1.6,0,TAU); ctx.arc(2.6,-11,1.6,0,TAU); ctx.fill();
+    } else if(e.type==='wisp'){
+      ctx.globalAlpha=.82;
+      ctx.fillStyle=flash?'#eaf8ff':'#8fb8cc';
+      ctx.beginPath(); ctx.ellipse(0,-2,9,15,0,0,TAU); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-9,4); ctx.lineTo(-13,20); ctx.lineTo(-5,13); ctx.lineTo(0,22); ctx.lineTo(5,13); ctx.lineTo(13,20); ctx.lineTo(9,4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#cfe6f2'; ctx.beginPath(); ctx.arc(0,-13,5.8,0,TAU); ctx.fill();
+      ctx.fillStyle='#2a4a5a'; ctx.beginPath(); ctx.arc(0,-16,7,Math.PI,TAU); ctx.fill();
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#bff0ff'; ctx.beginPath(); ctx.arc(-2.2,-13,1.5,0,TAU); ctx.arc(2.2,-13,1.5,0,TAU); ctx.fill();
+    } else {
+      ctx.fillStyle=flash?'#9fbfa0':'#3c5a44';
+      ctx.beginPath(); ctx.ellipse(0,0,10,13,0,0,TAU); ctx.fill();
+      ctx.fillStyle=flash?'#c8e0c8':'#4c6e52'; ctx.beginPath(); ctx.arc(0,-10,6,0,TAU); ctx.fill();
+      ctx.fillStyle='#2c4032'; ctx.beginPath(); ctx.arc(0,-12,6.4,Math.PI,TAU); ctx.fill();
+      ctx.fillStyle='#d8e070'; ctx.beginPath(); ctx.arc(-2.4,-10,1.5,0,TAU); ctx.arc(2.4,-10,1.5,0,TAU); ctx.fill();
+      ctx.strokeStyle='#20301f'; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(-9,2); ctx.lineTo(-15,10); ctx.moveTo(9,2); ctx.lineTo(15,10); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  drawEnemyUI(e);
+  ctx.restore();
+}
+
+function drawEnemyUI(e){
+  if(e.state==='windup'){
+    const k=e.t/e.windup;
+    ctx.strokeStyle='rgba(220,60,50,'+(.3+.5*k)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,-4, e.r*1.2+14, 0, TAU*(k*.9)); ctx.stroke();
+  }
+  if(e.hp<e.maxHp && e.type!=='bogcrone'){
+    const w=Math.max(26,e.r*2.4), hp=Math.max(0,e.hp/e.maxHp);
+    ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillRect(-w/2,-e.r-18,w,4);
+    ctx.fillStyle='#a3262c'; ctx.fillRect(-w/2,-e.r-18,w*hp,4);
+  }
+  if(e.burn>0){
+    ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(0,-8,0,0,-8,22);
+    g.addColorStop(0,'rgba(250,140,50,.35)'); g.addColorStop(1,'rgba(250,140,50,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,-8,22,0,TAU); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+}
+
+/* ---- 任務標記 ---- */
+function drawQuestMarker(){
+  let target=null;
+  if(G.quest===0||G.quest===3) target=npcs[0];
+  else if(G.quest===1) target={x:mill.x,y:mill.y};
+  else if(G.quest===2) target={x:nest.x,y:nest.y};
+  if(!target) return;
+  const sx=target.x-cam.x, sy=target.y-cam.y;
+  const onScreen = sx>40&&sx<VW-40&&sy>40&&sy<VH-40;
+  const t=G.time*2;
+  if(onScreen){
+    const y=sy-52+Math.sin(t)*4;
+    ctx.save(); ctx.translate(sx,y); ctx.rotate(Math.PI/4);
+    ctx.fillStyle='rgba(232,201,116,.85)'; ctx.fillRect(-5,-5,10,10);
+    ctx.strokeStyle='rgba(30,22,8,.7)'; ctx.lineWidth=1; ctx.strokeRect(-5,-5,10,10);
+    ctx.restore();
+  } else {
+    const a=Math.atan2(sy-VH/2, sx-VW/2);
+    const margin=54, rx=VW/2-margin, ry=VH/2-margin;
+    const cx=Math.cos(a), cy=Math.sin(a);
+    const tx=Math.abs(cx)<1e-4?1e9:rx/Math.abs(cx);
+    const ty=Math.abs(cy)<1e-4?1e9:ry/Math.abs(cy);
+    const t=Math.min(tx,ty);
+    const x=VW/2+cx*t, y=VH/2+cy*t;
+    ctx.save(); ctx.translate(x,y); ctx.rotate(a);
+    ctx.fillStyle='rgba(232,201,116,.8)';
+    ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(-6,-7); ctx.lineTo(-6,7); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* =========================================================
+   13. HUD 更新
+   ========================================================= */
+function updateHUD(){
+  document.getElementById('hpFill').style.width=(player.hp/player.maxHp*100)+'%';
+  document.getElementById('stFill').style.width=(player.stam/player.maxStam*100)+'%';
+  document.getElementById('hpTxt').textContent=Math.ceil(player.hp)+' / '+player.maxHp;
+  document.getElementById('lvl').textContent='LV '+G.level;
+  for(const k in signs){
+    const el=document.querySelector('.sign[data-sign="'+k+'"]');
+    const cd=signs[k].cd;
+    el.classList.toggle('cool',cd>0);
+    el.querySelector('.cd').textContent = cd>0 ? cd.toFixed(1) : '';
+  }
+  const boss=document.getElementById('bossbar');
+  if(G.bossOn){
+    const b=enemies.find(e=>e.type==='tombwraith'&&e.state!=='dead') || enemies.find(e=>e.type==='bogcrone'&&!e.side&&e.state!=='dead');
+    if(b){
+      document.getElementById('bossFill').style.width=Math.max(0,b.hp/b.maxHp*100)+'%';
+      const bn=boss.querySelector('.bname');
+      if(bn) bn.textContent = b.type==='tombwraith'?'墓　中　妖　靈':'水　鬼　婆';
+    }
+  }
+}
+
+/* =========================================================
+   14. 主循環
+   ========================================================= */
+let last=performance.now();
+let lastPlaying=null;
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000)||.016;
+  last=now;
+  const active=(G.mode==='play'||G.mode==='dialog'||G.mode==='inventory'||G.mode==='journal'||G.mode==='smith');
+  if(active!==lastPlaying){ document.body.classList.toggle('playing',active); lastPlaying=active; }
+  if(active && !G.demoFreeze) update(dt);
+  else {
+    G.time+=dt;
+    for(const f of fogs){ f.x+=f.vx*dt; f.y+=f.vy*dt; }
+  }
+  draw();
+  G.minimapT=(G.minimapT||0)+dt;
+  if(G.minimapT>0.12){ G.minimapT=0; drawMinimap(); }
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   15. 啟動
+   ========================================================= */
+function runSelfTest(){
+  document.getElementById('title').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  const rows=[]; let pass=0, fail=0;
+  const ok=(name,cond,extra)=>{ rows.push({name,cond,extra}); cond?pass++:fail++; };
+
+  resetGame();
+  player.x=648; player.y=640;
+  elderDialog();
+  ok('對話開啟', G.mode==='dialog');
+  chooseOption(0);
+  ok('接受委託', G.quest===1 && G.mode==='play', 'quest='+G.quest);
+
+  // 移動（鍵盤）
+  const px=player.x;
+  keys['KeyD']=true; player.dodge=0; update(0.1); keys['KeyD']=false;
+  ok('WASD 移動', player.x>px, (player.x-px).toFixed(1)+'px');
+
+  // 移動（滑鼠點擊）
+  player.x=640; player.y=790; player.moveTo=null;
+  mouseAction(1, {x:player.x+180, y:player.y});
+  const hadMove=!!player.moveTo;
+  update(0.2);
+  ok('滑鼠點擊移動', hadMove && player.x>640, 'x='+Math.round(player.x));
+
+  // 滑鼠鎖敵
+  enemies=[];
+  const et=spawnEnemy('bogdweller', player.x+90, player.y);
+  enemies.push(et);
+  mouseAction(1, {x:et.x, y:et.y});
+  ok('滑鼠鎖定敵人', player.target===et, 'target='+(player.target?player.target.type:'null'));
+  player.target=null;
+
+  // 碰撞：站在小屋中心應被推出
+  const hut=huts[0];
+  const rp=resolveCircle(hut.x,hut.y,13);
+  const inside = rp.x>hut.x-hut.w/2 && rp.x<hut.x+hut.w/2 && rp.y>hut.y-hut.h/2 && rp.y<hut.y+hut.h/2;
+  ok('建築碰撞', !inside);
+
+  // 存檔 / 讀檔（早期）
+  player.x=648; player.y=640; saveGame();
+  const goldBefore=G.gold;
+  G.gold=999;
+  const loaded=loadGame();
+  ok('讀檔還原', loaded && G.gold===goldBefore, 'gold='+G.gold);
+
+  // 戰鬥
+  enemies=[];
+  const e=spawnEnemy('bogdweller', player.x+45, player.y);
+  enemies.push(e);
+  player.facing=0; player.stam=100; player.atkCd=0; player.atk=null;
+  attack('fast');
+  ok('攻擊成立', !!player.atk);
+  applyAttackHit(player.atk);
+  ok('快斬扣血', e.hp<e.maxHp, 'hp='+e.hp.toFixed(0));
+
+  // 裝備加成
+  player.bonusDmg=10; player.atkCd=0; player.atk=null;
+  const e2=spawnEnemy('bogdweller', player.x+45, player.y);
+  enemies.push(e2);
+  attack('fast'); applyAttackHit(player.atk);
+  ok('銀劍加成', (e2.maxHp-e2.hp)>=20, 'dmg='+(e2.maxHp-e2.hp).toFixed(0));
+
+  // 夜泣
+  const w=spawnEnemy('wisp', player.x-60, player.y);
+  enemies.push(w);
+  ok('夜泣生成', w.type==='wisp' && w.hp===58, 'hp='+w.hp);
+  hitEnemy(w, 999, 0, 0);
+  ok('夜泣擊殺→精華', (player.inv.trophies.wisp_essence||0)===1, 'x'+(player.inv.trophies.wisp_essence||0));
+
+  // 夜泣油加成
+  const w2=spawnEnemy('wisp', player.x+45, player.y);
+  enemies.push(w2);
+  player.buffs.wispOil=60; player.facing=0; player.dmgMul=1;
+  let oilDmg=0;
+  for(let i=0;i<4 && oilDmg===0;i++){
+    player.atkCd=0; player.atk=null; attack('fast'); applyAttackHit(player.atk);
+    oilDmg=w2.maxHp-w2.hp;
+  }
+  ok('夜泣油加成', oilDmg>=18, 'dmg='+oilDmg.toFixed(0));
+  player.buffs.wispOil=0;
+
+  // 材料掉落
+  const hideBefore=player.mats.hide;
+  const em=spawnEnemy('bogdweller', player.x+52, player.y); enemies.push(em);
+  hitEnemy(em, 999, 0, 0);
+  ok('擊殺掉落材料', player.mats.hide>hideBefore, 'hide='+player.mats.hide);
+
+  // 鐵匠與升級
+  openSmith();
+  const smithOpen=(G.mode==='smith');
+  closeSmith();
+  ok('鐵匠面板', smithOpen && G.mode==='play', 'mode='+G.mode);
+  player.gear.weapon=1; applyGear();
+  G.gold=500; player.mats={ore:5, hide:5, dust:5};
+  const dmgBeforeUp=player.bonusDmg;
+  const up=upgradeGear('weapon');
+  ok('裝備升級', up.ok && player.gear.weapon===2 && player.bonusDmg>dmgBeforeUp, 'dmg='+player.bonusDmg);
+
+  // 支線：失蹤的補給車
+  player.x=boardPos.x; player.y=boardPos.y+40;
+  boardInteract();
+  chooseOption(0);
+  ok('接支線', G.side.stage===1 && enemies.some(en=>en.side), 'side='+G.side.stage);
+  props.filter(p=>p.kind==='crate').slice(0,3).forEach(c=>pickupCrate(c));
+  ok('補給箱 3/3', G.side.cr===3, 'cr='+G.side.cr);
+  const sbogcrone=enemies.find(en=>en.side);
+  if(sbogcrone) hitEnemy(sbogcrone, 999, 0, 0);
+  checkSide();
+  ok('支線清怪', G.side.bogcrone && G.side.stage===2, 'stage='+G.side.stage);
+  player.x=boardPos.x; player.y=boardPos.y+40;
+  boardInteract(); chooseOption(0);
+  ok('支線回報', G.side.stage===3, 'stage='+G.side.stage);
+
+  // 支線：狼人的詛咒
+  player.x=742; player.y=786;
+  widowDialog();
+  chooseOption(0);
+  ok('接狼人任務', G.were.stage===1, 'were='+G.were.stage);
+  props.filter(p=>p.kind==='claw').forEach(c=>clawInteract(c));
+  ok('爪痕 3/3', G.were.marks===3 && G.were.stage===2 && enemies.some(e=>e.type==='werewolf'),
+    'marks='+G.were.marks+' stage='+G.were.stage);
+  player.mats.dust=5; player.mats.ore=3;
+  const wolf=enemies.find(e=>e.type==='werewolf');
+  if(wolf){ player.x=wolf.x; player.y=wolf.y+40; }
+  werewolfDialog();
+  chooseOption(1);
+  const transPending=!!G.transform;
+  for(let i=0;i<25;i++) update(0.1);
+  ok('狼人詛咒解除', transPending && G.were.outcome==='cured' && G.were.stage===3, 'outcome='+G.were.outcome);
+  player.x=742; player.y=786;
+  const goldWolf=G.gold, mulWolf=player.dmgMul;
+  widowDialog();
+  chooseOption(0);
+  ok('狼人任務回報', G.were.stage===4 && G.gold===goldWolf+100 && player.dmgMul>mulWolf,
+    'gold='+G.gold+' mul='+player.dmgMul.toFixed(2));
+  // 狼人變身動畫
+  G.were={stage:2, marks:3, outcome:null};
+  const ww2=spawnEnemy('werewolf', player.x+70, player.y);
+  enemies.push(ww2);
+  beginCureTransform(ww2);
+  const transActive=!!G.transform;
+  for(let i=0;i<25;i++) update(0.1);
+  ok('狼人變身動畫', transActive && G.were.outcome==='cured' && npcs.some(n=>n.id==='husband'),
+    'outcome='+G.were.outcome);
+
+  // Boss 音樂層 / 8 向動畫
+  ok('Boss 音樂層', typeof AudioFX.setBoss==='function');
+  ok('8向動畫', typeof dirFrame==='function' && typeof player.moving==='boolean');
+
+  // 8 方向 sprite
+  ok('8向索引', dirIndexFor(0)===0 && dirIndexFor(-Math.PI/2)===6 && dirIndexFor(Math.PI)===4,
+    dirIndexFor(0)+','+dirIndexFor(-Math.PI/2)+','+dirIndexFor(Math.PI));
+
+  // 配樂引擎
+  ok('配樂引擎', typeof AudioFX.setIntensity==='function' && typeof AudioFX.music==='function');
+
+  // 寶箱與護甲
+  player.x=chestPos.x; player.y=chestPos.y+40;
+  const lootBefore=loot.length;
+  openChest();
+  ok('打開寶箱', chestOpened && loot.length===lootBefore+1, 'loot='+loot.length);
+  const armorLoot=loot.find(l=>l.item==='wolf_armor');
+  if(armorLoot) pickupLoot(armorLoot);
+  ok('裝備護甲', player.inv.armor==='wolf_armor' && player.gear.armor===1 && player.maxHp>=150, 'maxHp='+player.maxHp);
+
+  // 行囊 / 日誌
+  toggleInventory();
+  const invOpen=(G.mode==='inventory');
+  toggleInventory();
+  ok('行囊開關', invOpen && G.mode==='play', 'mode='+G.mode);
+  toggleJournal();
+  const jOpen=(G.mode==='journal');
+  toggleJournal();
+  ok('日誌開關', jOpen && G.mode==='play', 'mode='+G.mode);
+
+  // 清怪 → 階段 2
+  enemies.forEach(en=>{ if(en.state!=='dead') hitEnemy(en, 999, 0, 0); });
+  checkQuestKills();
+  ok('清怪轉階段', G.quest===2, 'quest='+G.quest);
+
+  // 法印：盾印
+  player.hp=100; player.shield=0; player.iframe=0;
+  castSign('quen');
+  ok('盾印護盾', player.shield>0, 'shield='+player.shield);
+
+  // 受傷與吸收
+  player.shield=0; player.iframe=0; hurtPlayer(20, player.x-10, player.y);
+  ok('受傷扣血', Math.round(player.hp)===80, 'hp='+Math.round(player.hp));
+  player.iframe=0; player.shield=9; hurtPlayer(20, player.x-10, player.y);
+  ok('盾印吸收', Math.round(player.hp)===80 && player.shield===0);
+
+  // 炎印燒巢
+  player.x=nest.x-60; player.y=nest.y; player.facing=0; player.stam=100; signs.igni.cd=0;
+  castSign('igni');
+  ok('炎印燒巢', G.quest===3, 'quest='+G.quest);
+
+  // 銅匣
+  loot.push({x:player.x, y:player.y, item:'locket', bob:0});
+  pickupLoot(loot[loot.length-1]);
+  ok('拾取銅匣', G.story.locketFound && G.quest===4, 'quest='+G.quest);
+
+  // 漁夫：真相
+  player.x=812; player.y=712;
+  fisherDialog();
+  chooseOption(0);
+  ok('真相分支', G.story.truth===true && G.quest===5 && player.dmgMul>1.09, 'quest='+G.quest+' mul='+player.dmgMul.toFixed(3));
+  chooseOption(0);
+
+  // 獵人
+  player.x=1088; player.y=842;
+  hunterDialog();
+  chooseOption(0);
+  ok('獵人任務', G.quest===6 && player.buffs.wispOil>0, 'quest='+G.quest);
+  chooseOption(0);
+
+  // 神龕 → Boss
+  player.x=shrinePos.x; player.y=shrinePos.y+50;
+  shrineInteract();
+  ok('神龕召喚Boss', tombwraithSpawned && G.quest===7, 'quest='+G.quest);
+
+  // 擊敗 Boss
+  const mat=enemies.find(en=>en.type==='tombwraith');
+  if(mat) hitEnemy(mat, 999, 0, 0);
+  ok('擊敗墓中夜泣', G.quest===8, 'quest='+G.quest);
+
+  // 交出夜泣之心 → 結局
+  player.x=648; player.y=640;
+  elderDialog();
+  chooseOption(0);
+  ok('最後選擇', G.story.seal===true && G.quest===9, 'quest='+G.quest);
+  chooseOption(0);
+
+  setTimeout(()=>{
+    ok('結局畫面', G.mode==='win', 'mode='+G.mode);
+    showEpilogue();
+    ok('後日談', G.mode==='epilogue' && document.getElementById('epiBody').textContent.length>20, 'mode='+G.mode);
+    hideEpilogue();
+
+    const box=document.createElement('div');
+    box.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99;background:rgba(6,8,11,.96);border:1px solid #c8a24a;padding:22px 28px;font:13px/1.9 "Microsoft JhengHei",sans-serif;color:#e9e3d3;min-width:440px;box-shadow:0 30px 80px #000';
+    box.innerHTML='<div style="font:600 15px Georgia,serif;color:#e8c974;letter-spacing:2px;margin-bottom:10px">SELF TEST · '+pass+' / '+(pass+fail)+' PASS</div>'+
+      rows.map(r=>'<div class="trow" style="color:'+(r.cond?'#9fd8a8':'#e08a8a')+'">'+(r.cond?'✓':'✗')+' '+r.name+(r.extra?'　<span style="color:#8d8673">'+r.extra+'</span>':'')+'</div>').join('');
+    document.body.appendChild(box);
+    document.title='SELFTEST '+pass+'/'+(pass+fail);
+  }, 800);
+}
+
+window.__w4={player, G, get enemies(){return enemies;}, get loot(){return loot;}, get props(){return props;}, attack, castSign, elderDialog, hunterDialog, fisherDialog, chooseOption, toggleInventory, toggleJournal, saveGame, loadGame, clearSave, pickupLoot, openChest, mouseAction, shrineInteract, spawnMatriarch, spawnEnemy, openSmith, closeSmith, upgradeGear, boardInteract, pickupCrate, dirIndexFor, applyGear};
+
+function startGame(fresh){
+  let loaded=false;
+  if(!fresh && hasSave()) loaded=loadGame();
+  if(!loaded) resetGame();
+  const q=new URLSearchParams(location.search);
+  const pos=q.get('pos');
+  if(!loaded){
+    if(pos==='mill'){ player.x=1860; player.y=1215; }
+    if(pos==='fight'){ player.x=1150; player.y=1000; }
+  }
+  if(q.get('dialog')==='elder'){ setTimeout(elderDialog, 350); }
+  if(q.get('dialog')==='widow'){ setTimeout(widowDialog, 350); }
+  if(q.get('dialog')==='werewolf'){ G.were.stage=2; spawnWerewolf(); player.x=wereLair.x; player.y=wereLair.y+70; setTimeout(werewolfDialog, 350); }
+  if(q.get('pose')==='were'){ acceptWere(); props.filter(p=>p.kind==='claw').forEach(c=>{ c.taken=true; }); G.were.marks=3; G.were.stage=2; spawnWerewolf(); player.x=wereLair.x-30; player.y=wereLair.y+95; player.facing=-1.4; G.demoFreeze=true; }
+  if(q.get('show')==='inventory'){
+    player.inv.sword='silver_sword'; player.bonusDmg=10;
+    player.inv.armor='wolf_armor'; player.maxHp=150; player.hp=150;
+    player.inv.trophies={wisp_essence:2, bogdweller_heart:1};
+    player.inv.fishOil=2; player.buffs.wispOil=120;
+    setTimeout(toggleInventory, 300);
+  }
+  if(q.get('show')==='journal'){
+    G.quest=5; G.story.locketFound=true; G.story.truth=true;
+    G.side={stage:1, cr:1, bogcrone:false};
+    setTimeout(toggleJournal, 300);
+  }
+  if(q.get('show')==='smith'){
+    player.gear.weapon=1; player.gear.armor=1; player.mats={ore:5,hide:4,dust:3}; G.gold=400; applyGear();
+    setTimeout(openSmith, 300);
+  }
+  if(pos==='side'){ player.x=2260; player.y=1340; }
+  if(q.get('side')==='1'){ acceptSide(); }
+  if(q.get('dirs')==='0') G.useDirs=false;
+  if(q.get('pose')==='side'){
+    acceptSide();
+    player.x=2230; player.y=1290; player.facing=1.0;
+    G.demoFreeze=true;
+  }
+  if(q.get('pose')==='cure'){
+    G.were={stage:2, marks:3, outcome:null};
+    const ww=spawnEnemy('werewolf', player.x+70, player.y); enemies.push(ww);
+    beginCureTransform(ww); G.transform.t=0.85; G.flash=0.35; G.demoFreeze=true;
+  }
+  if(q.get('epilogue')==='1'){
+    document.getElementById('title').classList.add('hidden');
+    document.getElementById('over').classList.add('hidden');
+    G.story.truth=true; G.story.seal=true; G.side.stage=3; G.were.outcome='cured';
+    showEpilogue(); return;
+  }
+  if(q.get('pose')==='dirs'){ G.mode='dirs'; document.getElementById('title').classList.add('hidden'); document.getElementById('over').classList.add('hidden'); return; }
+  if(q.get('pose')==='boss'){
+    player.x=1785; player.y=1150; player.facing=-0.35;
+    enemies.forEach(en=>{ en.aggro=true; });
+    const boss=enemies.find(en=>en.type==='bogcrone');
+    if(boss){ G.bossOn=true; document.getElementById('bossbar').classList.add('on'); }
+    G.demoFreeze=true;
+  }
+  if(q.get('pose')==='tombwraith'){
+    G.quest=6; shrineActive=true;
+    spawnMatriarch();
+    player.x=shrinePos.x-110; player.y=shrinePos.y+120; player.facing=-2.2;
+    G.demoFreeze=true;
+  }
+  if(q.get('pose')==='combat'){
+    player.x=2060; player.y=1240; player.facing=-0.55;
+    player.atk={kind:'strong',t:.31,dur:.62,hitAt:.30,hit:true,arc:1.5,range:96};
+    const near=enemies.filter(e=>e.type==='bogdweller').slice(0,3);
+    near.forEach((en,i)=>{ en.x=player.x+78+i*46; en.y=player.y-26+i*40; });
+    enemies.forEach(en=>{ en.aggro=true; en.state='windup'; en.t=.2; en.hitDone=false; });
+    for(let i=0;i<14;i++) spawnBlood(player.x+70, player.y-10, -0.4);
+    floatText(player.x+64, player.y-46, '27', '#f3d9a0');
+    G.demoFreeze=true;
+  }
+  cam.x=clamp(player.x-VW/2,0,W-VW); cam.y=clamp(player.y-VH/2,0,H-VH);
+  G.mode='play';
+  document.getElementById('title').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('invPanel').classList.remove('on');
+  document.getElementById('journalPanel').classList.remove('on');
+  if(loaded) toast('繼續旅程','進度已載入');
+  else toast('霧沼，夜半','按 E 或點擊與村長對話');
+  if(!loaded && q.get('play')!=='1' && q.get('test')!=='1'){
+    showPrologue();
+  }
+  if(q.get('prologue')==='1'){ showPrologue(); }
+}
+function restartGame(){
+  document.getElementById('over').classList.add('hidden');
+  startGame(true);
+}
+
+// 讓 demo 截圖可以直接入場
+resetGame();
+cam.x=clamp(player.x-VW/2,0,W-VW);
+cam.y=clamp(player.y-VH/2,0,H-VH);
+if(hasSave()) document.getElementById('titleStart').innerHTML='按 <b>ENTER</b> 繼續　·　<b>N</b> 新遊戲';
+if(new URLSearchParams(location.search).get('play')==='1'){
+  startGame(new URLSearchParams(location.search).get('fresh')==='1');
+}
+if(new URLSearchParams(location.search).get('test')==='1'){
+  setTimeout(runSelfTest, 400);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
