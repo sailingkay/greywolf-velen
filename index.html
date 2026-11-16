@@ -241,6 +241,12 @@
   .bindBtn:hover{background:rgba(200,162,74,.22)}
   .bcap{color:#8f8468;font-size:11px}
   .bindFoot{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+  #padhud{position:absolute;left:0;bottom:96px;display:none;flex-wrap:wrap;gap:10px;align-items:center;
+    padding:6px 10px;background:rgba(5,8,12,.72);border:1px solid rgba(200,162,74,.25);border-radius:4px;
+    font-size:11px;color:#cfc7b4;pointer-events:none}
+  #padhud .padtag{font-size:9px;letter-spacing:2px;color:#8a7a55;border:1px solid rgba(200,162,74,.35);
+    padding:1px 5px;border-radius:3px}
+  #padhud .paditem b{display:inline-block;min-width:18px;text-align:center;color:#e8c974;margin-right:3px}
 
   /* ---------- v0.12: 觸控 ---------- */
   .touchui{position:absolute;inset:0;display:none;z-index:6;pointer-events:none}
@@ -331,6 +337,7 @@
       <b>左鍵</b> 移動／攻擊　<b>右鍵</b> 重斬　<b>雙擊</b> 翻滾<br>
       <b>WASD</b> 移動　<b>1 2 3</b> 法印　<b>E</b> 互動　<b>R</b> 藥水　<b>I</b> 行囊　<b>J</b> 日誌
     </div>
+    <div id="padhud"></div>
 
     <div id="saveHint">已自動存檔</div>
     <div id="invPanel" class="panel">
@@ -414,6 +421,7 @@
       <div class="setRow"><span>音樂音量</span><input id="setMusic" type="range" min="0" max="100" value="90"></div>
       <div class="setRow"><span>8 方向行走動畫</span><input id="setDirs" type="checkbox" checked></div>
       <div class="setRow"><span>每 20 秒自動存檔</span><input id="setAuto" type="checkbox" checked></div>
+      <div class="setRow"><span>震動強度</span><input id="setRumble" type="range" min="0" max="100" value="70"></div>
       <div class="setRow"><span>手掣</span><b id="padStatus">未連接</b></div>
       <div class="setRow"><span>按鍵／手掣重映射</span><button id="btnControls" class="setBtn">設定…</button></div>
       <div class="invHint">ESC 關閉 · 設定會記住</div>
@@ -465,7 +473,7 @@
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.13 · 75 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.14 · 82 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -1156,7 +1164,10 @@ try{ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, parseInt(localStorage.getItem(S
 
 /* ---- v0.10：設定 ---- */
 const SETTINGS_KEY = 'whitewolf_settings';
-const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true };
+const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true, rumble:0.7 };
+const BINDINGS_KEY = 'whitewolf_bindings';
+function loadBindingsStore(){ try{ return JSON.parse(localStorage.getItem(BINDINGS_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function saveBindingsStore(o){ try{ localStorage.setItem(BINDINGS_KEY, JSON.stringify(o)); }catch(e){} }
 
 /* ---- v0.13：按鍵／手掣預設映射 ---- */
 const DEFAULT_BINDINGS = {
@@ -1295,11 +1306,19 @@ const PADBIND_BY_ACTION={};
 const REMAP={active:null};
 let CONTROLS_OPEN=false;
 
-function loadBindings(){
-  const b=Object.assign({},DEFAULT_BINDINGS,(typeof SETTINGS!=='undefined'&&SETTINGS.bindings)||{});
+function loadBindings(slot){
+  const s = slot || (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
+  const store = (typeof loadBindingsStore==='function')?loadBindingsStore():{};
+  let src = store[s];
+  // 舊版（全域設定）遷移到第 1 槽
+  if(!src && s===1 && typeof SETTINGS!=='undefined' && SETTINGS.bindings){
+    src = { bindings:SETTINGS.bindings, padBindings:SETTINGS.padBindings };
+  }
+  const b=Object.assign({},DEFAULT_BINDINGS,(src&&src.bindings)||{});
   for(const k of ACTION_ORDER){ BIND_BY_ACTION[k]=b[k]||DEFAULT_BINDINGS[k]; }
   reindexBindings();
-  const pb=Object.assign({},DEFAULT_PADBIND,(typeof SETTINGS!=='undefined'&&SETTINGS.padBindings)||{});
+  for(const k in PADBIND_BY_ACTION) delete PADBIND_BY_ACTION[k];
+  const pb=Object.assign({},DEFAULT_PADBIND,(src&&src.padBindings)||{});
   for(const k of ACTION_ORDER){ if(pb[k]!=null) PADBIND_BY_ACTION[k]=pb[k]; }
 }
 function reindexBindings(){
@@ -1307,9 +1326,15 @@ function reindexBindings(){
   for(const k of ACTION_ORDER){ const c=BIND_BY_ACTION[k]; if(c) ACTION_BY_CODE[c]=k; }
 }
 function saveBindings(){
+  const slot = (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
+  if(typeof saveBindingsStore==='function'){
+    const store = loadBindingsStore();
+    store[slot] = { bindings:Object.assign({},BIND_BY_ACTION), padBindings:Object.assign({},PADBIND_BY_ACTION) };
+    saveBindingsStore(store);
+  }
   if(typeof SETTINGS==='undefined') return;
-  SETTINGS.bindings=Object.assign({},BIND_BY_ACTION);
-  SETTINGS.padBindings=Object.assign({},PADBIND_BY_ACTION);
+  // 兼容舊欄位（只鏡像第 1 槽）
+  if(slot===1){ SETTINGS.bindings=Object.assign({},BIND_BY_ACTION); SETTINGS.padBindings=Object.assign({},PADBIND_BY_ACTION); }
   if(typeof saveSettings==='function') saveSettings();
 }
 function resolveKey(code){
@@ -1625,6 +1650,7 @@ function hitEnemy(e, dmg, kb, ang){
   floatText(e.x, e.y-e.r*1.7, Math.round(dmg), '#f3d9a0');
   G.hitStop=.045; G.shake=Math.max(G.shake,4);
   AudioFX.hit();
+  if(typeof rumble==='function') rumble(0.35, 0.18, 70);
   if(e.hp<=0) killEnemy(e);
 }
 function killEnemy(e){
@@ -1723,6 +1749,7 @@ function hurtPlayer(dmg, fromX, fromY){
   player.hurtFlash=.6;
   G.shake=Math.max(G.shake,9);
   AudioFX.hurt();
+  if(typeof rumble==='function') rumble(0.85, 0.45, 150);
   const a=Math.atan2(player.y-fromY, player.x-fromX);
   player.x+=Math.cos(a)*16; player.y+=Math.sin(a)*16;
   const h=document.getElementById('hurt'); h.style.opacity=.9; setTimeout(()=>h.style.opacity=0,140);
@@ -1992,6 +2019,7 @@ function spawnMatriarch(){
   const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='墓　中　妖　靈';
   updateHUD();
   G.shake=20;
+  if(typeof rumble==='function') rumble(0.95, 0.7, 380);
   for(let i=0;i<50;i++) spawnParticle(shrinePos.x+rand(-40,40), shrinePos.y+rand(-20,20), rand(-120,120), rand(-220,-40), rand(.6,1.6), rand(2,6), 'rgba(140,190,230,.8)', 40, true);
   toast('墓中夜泣','擊敗它，結束霧沼的夜鳴');
   updateQuestUI(); saveGame();
@@ -2279,6 +2307,7 @@ function spawnWraithKing(){
   G.bossOn=true;
   document.getElementById('bossbar').classList.add('on');
   const bn=document.querySelector('#bossbar .bname'); if(bn) bn.textContent='夜　泣　王';
+  if(typeof rumble==='function') rumble(0.95, 0.7, 380);
   toast('夜泣王甦醒','擊敗牠');
   updateQuestUI(); saveGame();
 }
@@ -2452,7 +2481,9 @@ function toast(t, sub){
 
 /* ---- 存檔 / 行囊 ---- */
 function setSlot(n){ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, n||1));
-  try{ localStorage.setItem(SLOT_KEY, String(CUR_SLOT)); }catch(e){} }
+  try{ localStorage.setItem(SLOT_KEY, String(CUR_SLOT)); }catch(e){}
+  if(typeof loadBindings==='function') loadBindings(CUR_SLOT);
+}
 function storageGet(slot){ const k = slotKey(slot||CUR_SLOT);
   try{ return localStorage.getItem(k); }catch(e){ return memSaves[k]||null; } }
 function storageSet(v, slot){ const k = slotKey(slot||CUR_SLOT);
@@ -2594,10 +2625,11 @@ function doLoad(n){
 function doDel(n){ clearSave(n); renderSavePanel(); toast('已刪除存檔 '+n); }
 
 function openSettings(){
-  const m = document.getElementById('setMusic'), d = document.getElementById('setDirs'), a = document.getElementById('setAuto');
+  const m = document.getElementById('setMusic'), d = document.getElementById('setDirs'), a = document.getElementById('setAuto'), r = document.getElementById('setRumble');
   if(m) m.value = Math.round((SETTINGS.music==null?0.9:SETTINGS.music)*100);
   if(d) d.checked = !!SETTINGS.dirs;
   if(a) a.checked = SETTINGS.autosave !== false;
+  if(r) r.value = Math.round((SETTINGS.rumble==null?0.7:SETTINGS.rumble)*100);
   document.getElementById('settingsPanel').classList.add('on');
   if(typeof updatePadUI==='function') updatePadUI();
 }
@@ -2805,6 +2837,10 @@ function update(dt){
   }
   const len=Math.hypot(mx,my);
   if(len>0){ mx/=len; my/=len; player.moveTo=null; }
+  // v0.14：類比慢行（搖桿輕推 = 慢行）
+  let analogMag=0;
+  if(typeof Pad!=='undefined' && Pad.connected && Pad.mag>0.12) analogMag=Math.max(analogMag,Pad.mag);
+  if(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.12) analogMag=Math.max(analogMag,Touch.mag);
 
   let moveAng=null;
   if(len>0){ moveAng=Math.atan2(my,mx); }
@@ -2833,6 +2869,7 @@ function update(dt){
   let spd = sprinting?player.sprint:player.speed;
   if(inWater(player.x,player.y)) spd*=.72;
   if(player.atk&&player.atk.t<player.atk.dur*.6) spd*=.35;
+  if(analogMag>0 && !sprinting) spd *= (0.42 + 0.58*Math.min(1,analogMag));
 
   if(player.dodge>0){
     player.dodge-=d;
@@ -4333,7 +4370,7 @@ function touchAct(act){
 
 /* ===== 16. 手掣＋按鍵重映射（v0.13） ===== */
 /* ---- part-14c.js · 16. 手掣（Gamepad API）＋按鍵重映射 UI（v0.13） ---- */
-const Pad={connected:false,id:'',index:-1,mx:0,my:0,mag:0,buttons:[]};
+const Pad={connected:false,id:'',index:-1,mx:0,my:0,mag:0,buttons:[],gp:null};
 const PAD_DEAD=0.28;
 const PAD_NAMES=['A','B','X','Y','LB','RB','LT','RT','Back','Start','L3','R3','↑','↓','←','→'];
 
@@ -4346,11 +4383,58 @@ function keyLabel(code){
 }
 function padLabel(i){ return PAD_NAMES[i]||('B'+i); }
 
+const GLYPHS={
+  xbox:{0:'Ⓐ',1:'Ⓑ',2:'Ⓧ',3:'Ⓨ',4:'LB',5:'RB',6:'LT',7:'RT',8:'▣',9:'☰',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'},
+  ps:{0:'✕',1:'○',2:'□',3:'△',4:'L1',5:'R1',6:'L2',7:'R2',8:'Share',9:'Options',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'},
+  generic:{0:'A',1:'B',2:'X',3:'Y',4:'LB',5:'RB',6:'LT',7:'RT',8:'Back',9:'Start',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'}
+};
+function padType(id){
+  const t=String(id==null?Pad.id:id).toLowerCase();
+  if(/xbox|xinput|045e|microsoft/.test(t)) return 'xbox';
+  if(/playstation|dualshock|dualsense|sony|054c|ps[345]/.test(t)) return 'ps';
+  return 'generic';
+}
+function padGlyph(i){ const set=GLYPHS[padType()]||GLYPHS.generic; return set[i]||('B'+i); }
+function renderPadHUD(){
+  const el=document.getElementById('padhud'); if(!el) return;
+  if(!Pad.connected){ el.style.display='none'; return; }
+  const t=padType();
+  const items=[
+    [PADBIND_BY_ACTION.interact,'互動'],[PADBIND_BY_ACTION.attack,'快攻'],
+    [PADBIND_BY_ACTION.dodge,'翻滾'],[PADBIND_BY_ACTION.strong,'重斬'],
+    [PADBIND_BY_ACTION.potion,'藥水'],[PADBIND_BY_ACTION.igni,'炎印'],
+    [PADBIND_BY_ACTION.inventory,'行囊'],[PADBIND_BY_ACTION.journal,'日誌']
+  ].filter(x=>x[0]!=null);
+  el.style.display='flex';
+  el.innerHTML='<span class="padtag">'+(t==='ps'?'PS':(t==='xbox'?'Xbox':'PAD'))+'</span>'+
+    items.map(x=>'<span class="paditem"><b>'+padGlyph(x[0])+'</b>'+x[1]+'</span>').join('');
+}
+function rumble(strong, weak, ms){
+  const amp=(typeof SETTINGS!=='undefined'&&SETTINGS.rumble!=null)?SETTINGS.rumble:0.7;
+  if(amp<=0) return false;
+  let gp=Pad.gp;
+  if(!gp){ try{ for(const p of navigator.getGamepads()){ if(p&&p.connected){ gp=p; break; } } }catch(e){} }
+  if(!gp) return false;
+  const s=Math.max(0,Math.min(1,strong*amp)), w=Math.max(0,Math.min(1,weak*amp));
+  const dur=Math.max(20, ms||120);
+  try{
+    if(gp.vibrationActuator && typeof gp.vibrationActuator.playEffect==='function'){
+      gp.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:dur,strongMagnitude:s,weakMagnitude:w});
+      return true;
+    }
+    if(gp.hapticActuators && gp.hapticActuators[0] && typeof gp.hapticActuators[0].pulse==='function'){
+      gp.hapticActuators[0].pulse(Math.max(s,w),dur); return true;
+    }
+  }catch(e){}
+  return false;
+}
+
 function updatePadUI(){
   const el=document.getElementById('padStatus');
   if(el) el.textContent=Pad.connected?('已連接 · '+String(Pad.id||'Gamepad').replace(/\s*\(.*?\)/g,'').slice(0,24)):'未連接';
   const hint=document.getElementById('padHint');
   if(hint) hint.style.display=Pad.connected?'block':'none';
+  if(typeof renderPadHUD==='function') renderPadHUD();
 }
 
 addEventListener('gamepadconnected', e=>{
@@ -4372,9 +4456,11 @@ function pollGamepad(){
   let gp=null;
   try{ for(const p of navigator.getGamepads()){ if(p&&p.connected){ gp=p; break; } } }catch(e){}
   if(!gp){
+    Pad.gp=null;
     if(Pad.connected){ Pad.connected=false; Pad.mag=0; updatePadUI(); }
     return;
   }
+  Pad.gp=gp;
   if(!Pad.connected || Pad.index!==gp.index){
     Pad.connected=true; Pad.index=gp.index; Pad.id=gp.id||'Gamepad'; Pad.buttons=[];
     updatePadUI();
@@ -4444,6 +4530,8 @@ function closeControls(){
   if(panel) panel.classList.remove('on');
 }
 function renderControls(){
+  const h=document.querySelector('#controlsPanel h3');
+  if(h) h.textContent='按鍵／手掣重映射 · 存檔槽 '+(typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
   const list=document.getElementById('bindList');
   if(!list) return;
   list.innerHTML=ACTION_ORDER.map(a=>{
@@ -4479,7 +4567,15 @@ function resetBindings(){
   if(typeof toast==='function') toast('已重設按鍵');
 }
 
+function initSettingsUI(){
+  const wire=(id,ev,fn)=>{ const el=document.getElementById(id); if(el) el.addEventListener(ev,fn); };
+  wire('setMusic','input',()=>{ SETTINGS.music=(+document.getElementById('setMusic').value)/100; applySettings(); saveSettings(); });
+  wire('setDirs','change',()=>{ SETTINGS.dirs=document.getElementById('setDirs').checked; applySettings(); saveSettings(); });
+  wire('setAuto','change',()=>{ SETTINGS.autosave=document.getElementById('setAuto').checked; saveSettings(); });
+  wire('setRumble','input',()=>{ SETTINGS.rumble=(+document.getElementById('setRumble').value)/100; saveSettings(); });
+}
 function initInputUI(){
+  initSettingsUI();
   const btn=document.getElementById('btnControls');
   if(btn) btn.addEventListener('click',openControls);
   const reset=document.getElementById('bindReset');
@@ -4602,6 +4698,51 @@ function runSelfTest(){
   setPadBinding('dodge',5);
   ok('手掣重映射', PADBIND_BY_ACTION.dodge===5, 'pad='+PADBIND_BY_ACTION.dodge);
   setPadBinding('dodge',oldPadDodge);
+
+  // v0.14: 震動 / 圖示 / 類比慢行 / 每槽按鍵
+  mockPad.vibrationActuator={ playEffect:(t,o)=>{ mockPad._rumble=o; mockPad._rumbleType=t; return Promise.resolve('ok'); } };
+  mockPad.hapticActuators=null;
+  Pad.gp=mockPad;
+  SETTINGS.rumble=0.5;
+  const rumbleOk=rumble(1, 0.5, 200);
+  ok('手掣震動', rumbleOk && mockPad._rumble && mockPad._rumble.duration===200 &&
+    Math.abs(mockPad._rumble.strongMagnitude-0.5)<0.01 && Math.abs(mockPad._rumble.weakMagnitude-0.25)<0.01,
+    JSON.stringify(mockPad._rumble||{}));
+  SETTINGS.rumble=0;
+  const rumbleOff=rumble(1,1,100);
+  ok('震動可關', rumbleOff===false, 'ok='+rumbleOff);
+  SETTINGS.rumble=0.7;
+  mockPad.vibrationActuator=null;
+  ok('震動無支援', rumble(0.5,0.5,80)===false);
+  mockPad.id='Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)'; Pad.id=mockPad.id;
+  const xb=padType()==='xbox' && padGlyph(0)==='Ⓐ' && padGlyph(3)==='Ⓨ';
+  mockPad.id='Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)'; Pad.id=mockPad.id;
+  const ps=padType()==='ps' && padGlyph(0)==='✕' && padGlyph(1)==='○';
+  ok('手掣圖示', xb && ps, 'xbox='+xb+' ps='+ps);
+  mockPad.vibrationActuator={playEffect:()=>Promise.resolve('ok')};
+  padPollMock(mockPad);
+  const hudEl=document.getElementById('padhud');
+  ok('HUD 手掣圖示', !!hudEl && hudEl.style.display==='flex' && hudEl.textContent.indexOf('互動')>=0,
+    hudEl?hudEl.textContent.slice(0,40):'null');
+  // analog slow walk
+  player.x=1234; player.y=1567; player.moveTo=null; player.target=null; player.dodge=0;
+  Pad.connected=true; Pad.mx=1; Pad.my=0; Pad.mag=1;
+  const ax0=player.x; update(0.1); const dxFast=player.x-ax0;
+  Pad.mag=0.4;
+  const ax1=player.x; update(0.1); const dxSlow=player.x-ax1;
+  ok('類比慢行', dxSlow>0 && dxSlow<dxFast*0.85, 'slow='+dxSlow.toFixed(1)+' fast='+dxFast.toFixed(1));
+  Pad.mag=0; Pad.mx=0; Pad.my=0;
+  // per-slot bindings
+  setSlot(1); loadBindings(); setBinding('interact','KeyQ'); saveBindings();
+  setSlot(2); loadBindings(); const slot2Default=(BIND_BY_ACTION.interact==='KeyE');
+  setBinding('interact','KeyZ'); saveBindings();
+  setSlot(3); loadBindings(); const slot3Default=(BIND_BY_ACTION.interact==='KeyE');
+  setSlot(1); loadBindings(); const slot1Back=(BIND_BY_ACTION.interact==='KeyQ');
+  saveSettings();
+  setSlot(2); loadBindings(); const slot2Back=(BIND_BY_ACTION.interact==='KeyZ');
+  ok('每槽獨立按鍵', slot2Default && slot3Default && slot1Back && slot2Back,
+    's1='+BIND_BY_ACTION.interact+' slot2ok='+slot2Back);
+  setSlot(1); resetBindings(); setSlot(2); resetBindings(); setSlot(3); resetBindings(); setSlot(1); loadBindings();
   SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings(); loadBindings();
 
   // 戰鬥
@@ -4835,6 +4976,12 @@ function runSelfTest(){
 
 window.__w4={player, G, get enemies(){return enemies;}, get loot(){return loot;}, get props(){return props;}, attack, castSign, elderDialog, hunterDialog, fisherDialog, chooseOption, toggleInventory, toggleJournal, saveGame, loadGame, clearSave, pickupLoot, openChest, mouseAction, shrineInteract, spawnMatriarch, spawnEnemy, openSmith, closeSmith, upgradeGear, boardInteract, pickupCrate, dirIndexFor, applyGear};
 
+function padPollMock(gp){
+  const old=navigator.getGamepads;
+  navigator.getGamepads=()=>[gp];
+  pollGamepad();
+  navigator.getGamepads=()=>[gp];
+}
 function startGame(fresh){
   let loaded=false;
   if(!fresh && hasSave()) loaded=loadGame();
@@ -4874,6 +5021,14 @@ function startGame(fresh){
   if(pos==='side'){ player.x=2260; player.y=1340; }
   if(q.get('side')==='1'){ acceptSide(); }
   if(q.get('dirs')==='0') G.useDirs=false;
+  if(q.get('pad')){
+    const ptype=q.get('pad')==='ps'?'ps':'xbox';
+    const pid=ptype==='ps'?'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)':'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
+    const mgp={index:0,id:pid,connected:true,axes:[0,0,0,0],buttons:Array.from({length:16},()=>({pressed:false,value:0})),
+      vibrationActuator:{playEffect:()=>Promise.resolve('complete')}};
+    navigator.getGamepads=()=>[mgp];
+    setTimeout(()=>{ padPollMock(mgp); }, 250);
+  }
 if(q.get('show')==='save') setTimeout(()=>{ try{ renderSavePanel(); document.getElementById('savePanel').classList.add('on'); }catch(e){} }, 200);
 if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){} }, 200);
   if(q.get('show')==='controls') setTimeout(()=>{ try{ openControls(); }catch(e){} }, 200);
