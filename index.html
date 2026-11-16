@@ -251,6 +251,14 @@
   .rpat{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;font-family:Consolas,monospace;
     font-size:12px;padding:4px 8px;width:100%}
   .setsel{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;padding:4px 8px;font-size:12px}
+  .rrow.share{grid-template-columns:auto 1fr auto auto;margin-top:8px}
+  #a11yCue{position:fixed;inset:0;z-index:60;pointer-events:none;box-shadow:inset 0 0 0 rgba(200,80,80,0)}
+  #a11yCue.on{animation:a11yflash .45s ease-out}
+  @keyframes a11yflash{0%{box-shadow:inset 0 0 120px rgba(220,90,80,.75)}100%{box-shadow:inset 0 0 0 rgba(220,90,80,0)}}
+  body.deck #hint{font-size:10px;line-height:1.6}
+  body.deck #padhud{bottom:118px}
+  body.deck .panel{transform:translate(-50%,-50%) scale(.91)}
+  body.deck #cv{object-fit:contain}
   #padhud{position:absolute;left:0;bottom:96px;display:none;flex-wrap:wrap;gap:10px;align-items:center;
     padding:6px 10px;background:rgba(5,8,12,.72);border:1px solid rgba(200,162,74,.25);border-radius:4px;
     font-size:11px;color:#cfc7b4;pointer-events:none}
@@ -418,6 +426,7 @@
     </div>
     <div id="prompt">Ｅ　對話</div>
     <div id="toast"></div>
+  <div id="a11yCue"></div>
     <div id="hurt"></div>
   </div>
 
@@ -436,6 +445,9 @@
       <div class="setRow"><span>手掣圖示主題</span><select id="setPadTheme" class="setsel">
         <option value="auto">自動</option><option value="xbox">Xbox</option><option value="ps">PlayStation</option></select></div>
       <div class="setRow"><span>震動模式</span><button id="btnRumble" class="setBtn">編輯…</button></div>
+      <div class="setRow"><span>減少震動（無障礙）</span><input id="setA11yReduce" type="checkbox"></div>
+      <div class="setRow"><span>只震動重要事件</span><input id="setA11yImportant" type="checkbox"></div>
+      <div class="setRow"><span>視覺震動提示</span><input id="setA11yCue" type="checkbox"></div>
       <div class="setRow"><span>按鍵／手掣重映射</span><button id="btnControls" class="setBtn">設定…</button></div>
       <div class="invHint">ESC 關閉 · 設定會記住</div>
     </div>
@@ -454,6 +466,12 @@
       <div class="setRow"><span>啟用震動</span><input id="rumbleEnabled" type="checkbox" checked></div>
       <div class="setRow"><span>強度</span><input id="rumbleIntensity" type="range" min="0" max="100" value="70"></div>
       <div id="rumbleList"></div>
+      <div class="rrow share">
+        <span class="bn">分享碼</span>
+        <input id="rumbleCode" class="rpat" placeholder="WR1-…（匯出／貼上後按匯入）">
+        <button id="rumbleExport" class="bindBtn">匯出</button>
+        <button id="rumbleImport" class="bindBtn">匯入</button>
+      </div>
       <div class="bindFoot">
         <button id="rumbleReset" class="bindBtn">重設</button>
         <button id="rumbleClose" class="bindBtn">關閉</button>
@@ -497,7 +515,7 @@
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.15 · 89 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.16 · 97 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -2672,6 +2690,10 @@ function openSettings(){
   if(a) a.checked = SETTINGS.autosave !== false;
   if(r) r.value = Math.round((SETTINGS.rumble==null?0.7:SETTINGS.rumble)*100);
   const pt=document.getElementById('setPadTheme'); if(pt) pt.value=SETTINGS.padTheme||'auto';
+  const ar=document.getElementById('setA11yReduce'), ai=document.getElementById('setA11yImportant'), ac=document.getElementById('setA11yCue');
+  if(ar) ar.checked=!!SETTINGS.a11yReduce;
+  if(ai) ai.checked=!!SETTINGS.a11yImportantOnly;
+  if(ac) ac.checked=!!SETTINGS.a11yVisualCue;
   document.getElementById('settingsPanel').classList.add('on');
   if(typeof updatePadUI==='function') updatePadUI();
 }
@@ -4508,22 +4530,93 @@ function pulseRumble(gp, strong, weak, ms){
   }catch(e){}
   return false;
 }
+function a11yCue(){
+  if(typeof SETTINGS==='undefined' || !SETTINGS.a11yVisualCue) return;
+  const el=document.getElementById('a11yCue'); if(!el) return;
+  el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+}
+function encodeRumbleCode(cfg){
+  try{
+    const src=cfg||getRumbleConfig();
+    const payload={v:1, enabled:!!src.enabled, intensity:Math.round((src.intensity||0)*100)/100, patterns:{}};
+    for(const k of ['hurt','hit','heavy','boss']) payload.patterns[k]=String(src.patterns[k]||'');
+    const b=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return 'WR1-'+b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }catch(e){ return ''; }
+}
+function decodeRumbleCode(code){
+  if(!code) return null;
+  let s=String(code).trim();
+  if(s.indexOf('WR1-')!==0) return null;
+  s=s.slice(4).replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4) s+='=';
+  let o=null;
+  try{ o=JSON.parse(decodeURIComponent(escape(atob(s)))); }catch(e){ return null; }
+  if(!o || o.v!==1 || !o.patterns) return null;
+  const cfg=Object.assign({},DEFAULT_RUMBLE);
+  cfg.enabled=!!o.enabled;
+  cfg.intensity=Math.max(0,Math.min(1,Number(o.intensity)||0));
+  cfg.patterns={};
+  for(const k of ['hurt','hit','heavy','boss']){
+    const raw=String(o.patterns[k]==null?'':o.patterns[k]);
+    if(parseRumblePattern(raw)===null) return null;
+    cfg.patterns[k]=raw;
+  }
+  return cfg;
+}
+function exportRumbleCode(){
+  const code=encodeRumbleCode(getRumbleConfig());
+  const el=document.getElementById('rumbleCode');
+  if(el){ el.value=code; try{ el.focus(); el.select(); }catch(e){} }
+  if(code && navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(code).catch(()=>{}); }
+  if(typeof toast==='function') toast('已匯出震動碼','已放入分享欄／剪貼簿');
+  return code;
+}
+function importRumbleCode(code){
+  const cfg=decodeRumbleCode(code);
+  if(!cfg){
+    if(typeof toast==='function') toast('震動碼無效','請貼上完整 WR1- 開頭字串');
+    return false;
+  }
+  saveRumbleConfig(cfg);
+  renderRumblePanel();
+  if(typeof toast==='function') toast('已匯入震動碼','存檔槽 '+(typeof CUR_SLOT!=='undefined'?CUR_SLOT:1));
+  return true;
+}
+function applyDeckProfile(on){
+  const deck=(on!==false);
+  try{ window.__DECK_MODE=deck; }catch(e){}
+  document.body.classList.toggle('deck', deck);
+  return deck;
+}
+function detectSteamDeck(){
+  try{
+    if(window.steamEnv && window.steamEnv.isSteamDeck) return true;
+  }catch(e){}
+  return /Steam Deck|SteamDeck/i.test(navigator.userAgent||'');
+}
 function playRumblePattern(name, override){
   const cfg=getRumbleConfig();
   if(!cfg.enabled || !(cfg.intensity>0)) return false;
+  const a11y=(typeof SETTINGS!=='undefined')?SETTINGS:{};
+  if(a11y.a11yImportantOnly && name!=='hurt' && name!=='boss'){ a11yCue(); return false; }
   const raw = (override!=null?override:cfg.patterns[name]);
   const pat = parseRumblePattern(raw||'');
   if(!pat || !pat.length) return false;
   const gp = findPadForRumble();
-  if(!gp) return false;
-  const amp = cfg.intensity;
-  let delay = 0;
-  for(const step of pat){
-    const go = ()=>pulseRumble(gp, step.strong*amp, step.weak*amp, step.dur);
-    if(delay<=0) go(); else setTimeout(go, delay);
-    delay += step.dur;
+  const amp = cfg.intensity * (a11y.a11yReduce?0.5:1);
+  const durScale = a11y.a11yReduce?0.6:1;
+  if(gp){
+    let delay = 0;
+    for(const step of pat){
+      const dur = Math.max(20, Math.round(step.dur*durScale));
+      const go = ()=>pulseRumble(gp, step.strong*amp, step.weak*amp, dur);
+      if(delay<=0) go(); else setTimeout(go, delay);
+      delay += dur;
+    }
   }
-  return true;
+  a11yCue();
+  return !!gp;
 }
 function rumble(strong, weak, ms){
   const cfg=getRumbleConfig();
@@ -4579,6 +4672,14 @@ function steamInputPoll(){
     const ax=+st.axes.x||0, ay=+st.axes.y||0, mag=Math.min(1,Math.hypot(ax,ay));
     if(mag>0.12){ Pad.steamX=ax/mag; Pad.steamY=ay/mag; Pad.steamMag=mag; }
     else { Pad.steamX=0; Pad.steamY=0; Pad.steamMag=0; }
+  }
+  if(st.deck) applyDeckProfile(true);
+  if(st.type){
+    Pad.steamType=st.type;
+    if(typeof SETTINGS!=='undefined' && (!SETTINGS.padTheme || SETTINGS.padTheme==='auto')){
+      if(/xbox/i.test(st.type)) Pad.id='Steam Input XBox Controller';
+      else if(/ps/i.test(st.type)) Pad.id='Steam Input PlayStation Controller';
+    }
   }
 }
 
@@ -4727,6 +4828,9 @@ function initSettingsUI(){
   wire('setAuto','change',()=>{ SETTINGS.autosave=document.getElementById('setAuto').checked; saveSettings(); });
   wire('setRumble','input',()=>{ setRumbleValue('intensity', (+document.getElementById('setRumble').value)/100); });
   wire('setPadTheme','change',()=>{ SETTINGS.padTheme=document.getElementById('setPadTheme').value||'auto'; saveSettings(); updatePadUI(); renderControls(); });
+  wire('setA11yReduce','change',()=>{ SETTINGS.a11yReduce=document.getElementById('setA11yReduce').checked; saveSettings(); });
+  wire('setA11yImportant','change',()=>{ SETTINGS.a11yImportantOnly=document.getElementById('setA11yImportant').checked; saveSettings(); });
+  wire('setA11yCue','change',()=>{ SETTINGS.a11yVisualCue=document.getElementById('setA11yCue').checked; saveSettings(); });
   const rb=document.getElementById('btnRumble'); if(rb) rb.addEventListener('click',openRumblePanel);
 }
 function initInputUI(){
@@ -4734,6 +4838,10 @@ function initInputUI(){
   const rbBtn=document.getElementById('btnRumble'); if(rbBtn) rbBtn.addEventListener('click',openRumblePanel);
   const rReset=document.getElementById('rumbleReset'); if(rReset) rReset.addEventListener('click',()=>{ resetRumblePatterns(); toast('震動模式已重設'); });
   const rClose=document.getElementById('rumbleClose'); if(rClose) rClose.addEventListener('click',closeRumblePanel);
+  const rExp=document.getElementById('rumbleExport'); if(rExp) rExp.addEventListener('click',exportRumbleCode);
+  const rImp=document.getElementById('rumbleImport'); if(rImp) rImp.addEventListener('click',()=>{
+    const el=document.getElementById('rumbleCode'); importRumbleCode(el?el.value:'');
+  });
   const rEn=document.getElementById('rumbleEnabled'); if(rEn) rEn.addEventListener('change',()=>{ setRumbleValue('enabled', rEn.checked); renderRumblePanel(); });
   const rAmp=document.getElementById('rumbleIntensity'); if(rAmp) rAmp.addEventListener('input',()=>{ setRumbleValue('intensity', (+rAmp.value)/100); });
   const btn=document.getElementById('btnControls');
@@ -4940,6 +5048,48 @@ function runSelfTest(){
   window.steamInput=null; steamInputPoll();
   const steamOff=SteamInput.available===false;
   ok('Steam Input 橋接', steamOk && steamOff, 'on='+steamOk+' off='+steamOff);
+  setSlot(1); loadBindings();
+
+  // v0.16: 分享碼 / 無障礙震動 / Deck profile
+  const codeCfg=getRumbleConfig();
+  codeCfg.intensity=0.66; codeCfg.patterns.hit='33:0.5:0.2'; codeCfg.patterns.heavy='88:0.7:0.3,44:0.2:0.1';
+  saveRumbleConfig(codeCfg);
+  const shareCode=encodeRumbleCode(getRumbleConfig());
+  const decoded=decodeRumbleCode(shareCode);
+  const shareOk=/^WR1-[A-Za-z0-9_-]+$/.test(shareCode) && !!decoded && Math.abs(decoded.intensity-0.66)<0.01 &&
+    decoded.patterns.hit==='33:0.5:0.2' && decoded.patterns.heavy==='88:0.7:0.3,44:0.2:0.1';
+  ok('震動分享碼匯出', shareOk, shareCode.slice(0,28)+'…');
+  const badCode=decodeRumbleCode('WR1-@@@')===null && decodeRumbleCode('NOPE')===null && decodeRumbleCode('WR1-'+btoa('{}'))===null;
+  ok('震動分享碼驗證', badCode);
+  const importCfg=getRumbleConfig(); importCfg.patterns.hit='45:0.35:0.15'; saveRumbleConfig(importCfg);
+  const imported=importRumbleCode(shareCode);
+  ok('震動分享碼匯入', imported===true && getRumbleConfig().patterns.hit==='33:0.5:0.2',
+    getRumbleConfig().patterns.hit);
+  mockPad.vibrationActuator={ playEffect:(t,o)=>{ mockPad._a11y=o; return Promise.resolve('ok'); } };
+  Pad.gp=mockPad;
+  { const c=getRumbleConfig(); c.enabled=true; c.intensity=0.7; c.patterns.hit='40:1:1'; saveRumbleConfig(c); }
+  SETTINGS.a11yReduce=true;
+  playRumblePattern('hit');
+  ok('減少震動', !!mockPad._a11y && Math.abs(mockPad._a11y.strongMagnitude-0.35)<0.01 && mockPad._a11y.duration===24,
+    JSON.stringify(mockPad._a11y||{}));
+  SETTINGS.a11yReduce=false; SETTINGS.a11yImportantOnly=true;
+  const skipHit=playRumblePattern('hit');
+  const allowHurt=playRumblePattern('hurt');
+  ok('只震動重要事件', skipHit===false && allowHurt===true, 'hit='+skipHit+' hurt='+allowHurt);
+  SETTINGS.a11yImportantOnly=false; SETTINGS.a11yVisualCue=true;
+  const cueEl=document.getElementById('a11yCue');
+  a11yCue();
+  ok('視覺震動提示', !!cueEl && cueEl.classList.contains('on'), cueEl?cueEl.className:'null');
+  SETTINGS.a11yVisualCue=false;
+  applyDeckProfile(true);
+  const deckOn=document.body.classList.contains('deck');
+  applyDeckProfile(false);
+  const deckOff=!document.body.classList.contains('deck');
+  ok('Deck profile', deckOn && deckOff, 'on='+deckOn+' off='+deckOff);
+  window.steamEnv={isSteamDeck:true};
+  const deckDetect=detectSteamDeck()===true;
+  window.steamEnv=null;
+  ok('Steam Deck 偵測', deckDetect);
   setSlot(1); loadBindings();
   SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings(); loadBindings();
 
@@ -5290,6 +5440,7 @@ function restartGame(){
 }
 
 // 讓 demo 截圖可以直接入場
+if(new URLSearchParams(location.search).get('deck')==='1' || detectSteamDeck()) applyDeckProfile(true);
 resetGame();
 cam.x=clamp(player.x-VW/2,0,W-VW);
 cam.y=clamp(player.y-VH/2,0,H-VH);
