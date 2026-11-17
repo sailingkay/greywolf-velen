@@ -225,7 +225,7 @@
     padding:5px 10px;font-size:12px;cursor:pointer;pointer-events:auto}
   .setBtn:hover{background:rgba(200,162,74,.22)}
   #controlsPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:660px;max-height:78vh;
-    overflow-y:auto;padding:20px 24px;z-index:8;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
+    overflow-y:auto;padding:20px 24px;z-index:10;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
     border:1px solid rgba(200,162,74,.5);box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
   #controlsPanel.on{display:block}
   #controlsPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 12px;font-weight:400}
@@ -242,7 +242,7 @@
   .bcap{color:#8f8468;font-size:11px}
   .bindFoot{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
   #rumblePanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:640px;max-height:80vh;
-    overflow-y:auto;padding:20px 24px;z-index:8;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
+    overflow-y:auto;padding:20px 24px;z-index:10;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
     border:1px solid rgba(200,162,74,.5);box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
   #rumblePanel.on{display:block}
   #rumblePanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 12px;font-weight:400}
@@ -433,7 +433,7 @@
     <div id="savePanel" class="panel">
       <h3>存檔 · 三個位置</h3>
       <div id="saveList"></div>
-      <div class="invHint">S 開關 · ESC 關閉 · 自動存檔寫入當前位置 · <a href="#" id="openSettings" style="color:#e8c974">設定</a></div>
+      <div class="invHint">O 開關 · ESC 關閉 · 自動存檔寫入當前位置 · <a href="#" id="openSettings" style="color:#e8c974">設定</a></div>
     </div>
     <div id="settingsPanel" class="panel">
       <h3>設定</h3>
@@ -449,6 +449,7 @@
       <div class="setRow"><span>只震動重要事件</span><input id="setA11yImportant" type="checkbox"></div>
       <div class="setRow"><span>視覺震動提示</span><input id="setA11yCue" type="checkbox"></div>
       <div class="setRow"><span>按鍵／手掣重映射</span><button id="btnControls" class="setBtn">設定…</button></div>
+      <div class="bindFoot"><button id="setClose" class="setBtn">關閉</button></div>
       <div class="invHint">ESC 關閉 · 設定會記住</div>
     </div>
     <div id="controlsPanel" class="panel">
@@ -515,7 +516,7 @@
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.16 · 97 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.16.1 · 112 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -1217,10 +1218,10 @@ const DEFAULT_RUMBLE = {
     boss:'180:0.95:0.7,120:0.4:0.25,200:0.9:0.6'
   }
 };
-function loadRumbleStore(){ try{ return JSON.parse(localStorage.getItem(RUMBLE_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function loadRumbleStore(){ try{ const o=JSON.parse(localStorage.getItem(RUMBLE_KEY)||'{}'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
 function saveRumbleStore(o){ try{ localStorage.setItem(RUMBLE_KEY, JSON.stringify(o)); }catch(e){} }
 const BINDINGS_KEY = 'whitewolf_bindings';
-function loadBindingsStore(){ try{ return JSON.parse(localStorage.getItem(BINDINGS_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function loadBindingsStore(){ try{ const o=JSON.parse(localStorage.getItem(BINDINGS_KEY)||'{}'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }catch(e){ return {}; } }
 function saveBindingsStore(o){ try{ localStorage.setItem(BINDINGS_KEY, JSON.stringify(o)); }catch(e){} }
 
 /* ---- v0.13：按鍵／手掣預設映射 ---- */
@@ -1394,19 +1395,36 @@ function saveBindings(){
 function resolveKey(code){
   if(code==='ShiftRight') code='ShiftLeft';
   const act=ACTION_BY_CODE[code];
-  return act?(DEFAULT_BINDINGS[act]||code):code;
+  // 用「呢個動作而家綁咩鍵」— 唔係預設鍵，否則重映射之後 keyup 會清錯 key。
+  return act?(BIND_BY_ACTION[act]||DEFAULT_BINDINGS[act]||code):code;
+}
+function keyDown(action){
+  const c=BIND_BY_ACTION[action];
+  return !!(c && keys[c]);
+}
+function captureRejected(code){
+  if(!code) return true;
+  if(/^F\d{1,2}$/.test(code)) return true;                          // F1–F12（F5 會 reload）
+  if(code==='Tab'||code==='Escape'||code==='Enter') return true;
+  if(code==='KeyO'||code==='KeyN') return true;                      // 系統熱鍵
+  if(/^(Shift|Control|Alt|Meta)(Left|Right)$/.test(code)) return true; // 純修飾鍵
+  return false;
 }
 function setBinding(action,code){
   if(!action||!code) return false;
   const old=BIND_BY_ACTION[action];
   for(const k of ACTION_ORDER){ if(k!==action && BIND_BY_ACTION[k]===code) BIND_BY_ACTION[k]=old; }
   BIND_BY_ACTION[action]=code;
+  if(old) keys[old]=false;      // 舊鍵可能仲按住，唔清就會一直行
+  keys[code]=false;
   reindexBindings(); saveBindings(); return true;
 }
 function setPadBinding(action,btn){
   for(const k of ACTION_ORDER){ if(k!==action && PADBIND_BY_ACTION[k]===btn) delete PADBIND_BY_ACTION[k]; }
   PADBIND_BY_ACTION[action]=btn;
-  saveBindings(); return true;
+  saveBindings();
+  if(typeof updatePadUI==='function') updatePadUI();
+  return true;
 }
 function inputAction(act){
   if(!act) return;
@@ -1426,10 +1444,14 @@ function inputAction(act){
 }
 
 addEventListener('keydown', e=>{
+  // 焦點喺輸入框（震動分享碼等）時，唔好玩遊戲熱鍵、唔好搶按鍵
+  const tgt=e.target;
+  if(tgt && tgt.closest && tgt.closest('input,textarea,select,[contenteditable]')) return;
   AudioFX.init();
   if(REMAP.active && REMAP.active.kind==='key'){
     e.preventDefault();
-    if(e.code!=='Escape' && e.code!=='Enter') setBinding(REMAP.active.action, e.code);
+    if(captureRejected(e.code)){ if(typeof toast==='function') toast('呢個鍵唔可以用','請揀字母／數字鍵'); }
+    else setBinding(REMAP.active.action, e.code);
     REMAP.active=null;
     if(typeof renderControls==='function') renderControls();
     return;
@@ -1446,26 +1468,12 @@ addEventListener('keydown', e=>{
   const logical=act?BIND_BY_ACTION[act]:code;
   keys[logical]=true;
   if(e.repeat) return;
-  if(e.code==='Enter'){
-    if(G.mode==='title'){ startGame(false); }
-    else if(G.mode==='prologue'){ endPrologue(); }
-    else if(G.mode==='win'){ showEpilogue(); }
-    else if(G.mode==='epilogue'){ clearSave(); startGame(true); }
-    else if(G.mode==='dead'){ retryFromSave(); }
-    return;
-  }
-  if(e.code==='Escape'){
-    if(G.mode==='inventory') toggleInventory();
-    else if(G.mode==='journal') toggleJournal();
-    else if(G.mode==='smith') closeSmith();
-    else if(G.mode==='travel') closeTravel();
-    else if(G.mode==='dialog') closeDialog();
-    else if(G.mode==='settings') closeSettings();
-    return;
-  }
+  if(e.code==='Enter'){ uiConfirm(); return; }
+  if(e.code==='Escape'){ uiBack(); return; }
   if(G.mode==='title' && e.code==='KeyN'){ clearSave(); startGame(true); return; }
-  if((G.mode==='title'||G.mode==='play') && e.code==='KeyS' && !act){ openSavePanel(); return; }
-  if(G.mode==='save' && e.code==='KeyS'){ closeSavePanel(); return; }
+  // S 預設係「向後」，所以用 O 開存檔；S 只喺被改到冇綁定時做後備。
+  if((G.mode==='title'||G.mode==='play') && (e.code==='KeyO' || (e.code==='KeyS' && !act))){ openSavePanel(); return; }
+  if(G.mode==='save' && (e.code==='KeyO'||e.code==='KeyS')){ closeSavePanel(); return; }
   if(G.mode==='dialog'){
     if(e.code>='Digit1'&&e.code<='Digit4') chooseOption(+e.code.slice(-1)-1);
     return;
@@ -1473,6 +1481,19 @@ addEventListener('keydown', e=>{
   if(act) inputAction(act);
 });
 addEventListener('keyup', e=>{ let code=e.code; if(code==='ShiftRight') code='ShiftLeft'; keys[resolveKey(code)]=false; });
+
+/* 失去焦點（alt-tab／Steam overlay／切換視窗）之後，keyup 永遠唔會嚟，所以清晒所有按住嘅輸入。 */
+function clearHeldInput(){
+  for(const k in keys) keys[k]=false;
+  // Touch.active 係「觸控模式」旗標，唔可以清；只清搖桿向量（清咗 active 會令所有觸控掣失靈）
+  try{ if(typeof Touch!=='undefined'&&Touch){ Touch.mag=0; Touch.x=0; Touch.y=0;
+    const knob=document.getElementById('knob'); if(knob) knob.style.transform='translate(0,0)'; } }catch(e){}
+  try{ if(typeof Pad!=='undefined'&&Pad){ Pad.mag=0; Pad.mx=0; Pad.my=0; Pad.buttons=[];
+    Pad.steamX=0; Pad.steamY=0; Pad.steamMag=0; } }catch(e){}
+  try{ if(typeof REMAP!=='undefined') REMAP.active=null; }catch(e){}
+}
+addEventListener('blur', clearHeldInput);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) clearHeldInput(); });
 
 cv.addEventListener('mousemove', e=>{
   const r=cv.getBoundingClientRect();
@@ -2542,15 +2563,23 @@ function toast(t, sub){
 function setSlot(n){ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, n||1));
   try{ localStorage.setItem(SLOT_KEY, String(CUR_SLOT)); }catch(e){}
   if(typeof loadBindings==='function') loadBindings(CUR_SLOT);
+  if(typeof updatePadUI==='function') updatePadUI();
 }
 function storageGet(slot){ const k = slotKey(slot||CUR_SLOT);
-  try{ return localStorage.getItem(k); }catch(e){ return memSaves[k]||null; } }
+  if(Object.prototype.hasOwnProperty.call(memSaves,k)) return memSaves[k];
+  try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function storageSet(v, slot){ const k = slotKey(slot||CUR_SLOT);
-  try{ localStorage.setItem(k, v); }catch(e){ memSaves[k] = v; } }
+  memSaves[k]=v;
+  try{ localStorage.setItem(k, v); }catch(e){} }
 function hasSave(slot){ return !!storageGet(slot); }
 function migrateLegacySave(){
-  try{ const old = localStorage.getItem(SAVE_KEY_LEGACY);
-    if(old && !storageGet(1)) storageSet(old, 1); }catch(e){}
+  try{
+    const old = localStorage.getItem(SAVE_KEY_LEGACY);
+    if(!old) return;
+    if(!storageGet(1)) storageSet(old, 1);
+    // 遷移一次就清走舊 key，否則玩家刪咗第 1 槽之後，舊檔會喺下次開機復活。
+    if(storageGet(1)) localStorage.removeItem(SAVE_KEY_LEGACY);
+  }catch(e){}
 }
 function flashSave(){
   const el=document.getElementById('saveHint'); if(!el) return;
@@ -2558,7 +2587,7 @@ function flashSave(){
   flashSave._t=setTimeout(()=>el.classList.remove('on'),1300);
 }
 function saveGame(slot){
-  if(G.mode!=='play' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith' && G.mode!=='travel' && G.mode!=='save') return;
+  if(G.mode!=='play' && G.mode!=='dialog' && G.mode!=='inventory' && G.mode!=='journal' && G.mode!=='smith' && G.mode!=='travel' && G.mode!=='save') return;
   try{
     const data={v:3, ts:Date.now(), level:G.level, xp:G.xp, gold:G.gold, quest:G.quest,
       hp:Math.round(player.hp), maxHp:player.maxHp, bonusDmg:player.bonusDmg, dmgMul:player.dmgMul,
@@ -2673,13 +2702,25 @@ function openSavePanel(){
 function closeSavePanel(){
   document.getElementById('savePanel').classList.remove('on');
   G.mode = G._prevMode || 'play';
+  G._prevMode = null;
 }
-function doSave(n){ setSlot(n); saveGame(n); renderSavePanel(); toast('已存入存檔 '+n); }
+function doSave(n){
+  if(G._prevMode==='title'){ toast('未開始遊戲','先開始新遊戲或讀取存檔'); return; }
+  saveGame(n); renderSavePanel(); toast('已存入存檔 '+n);
+}
 function doLoad(n){
   if(!hasSave(n)) return;
   setSlot(n);
   document.getElementById('savePanel').classList.remove('on');
-  if(loadGame(n)){ G.mode='play'; toast('已讀取存檔 '+n); }
+  if(loadGame(n)){
+    G.mode='play';
+    G._prevMode=null;
+    document.getElementById('title').classList.add('hidden');
+    document.getElementById('over').classList.add('hidden');
+    document.getElementById('epilogue').classList.add('hidden');
+    cam.x=clamp(player.x-VW/2,0,W-VW); cam.y=clamp(player.y-VH/2,0,H-VH);
+    toast('已讀取存檔 '+n);
+  }
 }
 function doDel(n){ clearSave(n); renderSavePanel(); toast('已刪除存檔 '+n); }
 
@@ -2695,9 +2736,13 @@ function openSettings(){
   if(ai) ai.checked=!!SETTINGS.a11yImportantOnly;
   if(ac) ac.checked=!!SETTINGS.a11yVisualCue;
   document.getElementById('settingsPanel').classList.add('on');
+  if(G.mode!=='settings'){ G._prevMode=G.mode; G.mode='settings'; }
   if(typeof updatePadUI==='function') updatePadUI();
 }
-function closeSettings(){ document.getElementById('settingsPanel').classList.remove('on'); }
+function closeSettings(){
+  document.getElementById('settingsPanel').classList.remove('on');
+  if(G.mode==='settings'){ G.mode=G._prevMode||'play'; G._prevMode=null; }
+}
 
 function toggleInventory(){
   if(G.mode==='inventory'){ G.mode='play'; document.getElementById('invPanel').classList.remove('on'); return; }
@@ -2887,10 +2932,10 @@ function update(dt){
 
   // 玩家移動（鍵盤 / 滑鼠點擊）
   let mx=0,my=0;
-  if(keys['KeyW']||keys['ArrowUp']) my--;
-  if(keys['KeyS']||keys['ArrowDown']) my++;
-  if(keys['KeyA']||keys['ArrowLeft']) mx--;
-  if(keys['KeyD']||keys['ArrowRight']) mx++;
+  if(keyDown('moveUp')||keys['ArrowUp']) my--;
+  if(keyDown('moveDown')||keys['ArrowDown']) my++;
+  if(keyDown('moveLeft')||keys['ArrowLeft']) mx--;
+  if(keyDown('moveRight')||keys['ArrowRight']) mx++;
   // v0.12：虛擬搖桿（類比）
   if(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.12){
     mx += Touch.x*Touch.mag; my += Touch.y*Touch.mag; player.moveTo=null;
@@ -2933,7 +2978,7 @@ function update(dt){
   player.moving = (moveAng!==null) || player.dodge>0;
   const touchSprint=(typeof Touch!=='undefined' && Touch.active && Touch.mag>0.88);
   const padSprint=(typeof Pad!=='undefined' && Pad.connected && Pad.mag>0.88);
-  const sprinting=((keys['ShiftLeft']||keys['ShiftRight'])||touchSprint||padSprint)&&player.stam>2&&moveAng!==null;
+  const sprinting=((keyDown('sprint')||keys['ShiftRight'])||touchSprint||padSprint)&&player.stam>2&&moveAng!==null;
   let spd = sprinting?player.sprint:player.speed;
   if(inWater(player.x,player.y)) spd*=.72;
   if(player.atk&&player.atk.t<player.atk.dur*.6) spd*=.35;
@@ -2966,7 +3011,7 @@ function update(dt){
   }
 
   // 迴避
-  if((keys['Space'])&&player.dodgeCd<=0&&player.stam>12&&player.dodge<=0){
+  if((keyDown('dodge'))&&player.dodgeCd<=0&&player.stam>12&&player.dodge<=0){
     player.stam-=18; player.dodge=.22; player.dodgeCd=.75; player.dodgeAng=Math.atan2(my,mx);
     if(len===0) player.dodgeAng=player.facing+Math.PI;
     player.iframe=.28;
@@ -4512,6 +4557,7 @@ function parseRumblePattern(str){
 }
 function findPadForRumble(){
   let gp=Pad.gp;
+  if(gp && gp.connected===false) gp=null;
   if(!gp){ try{ for(const p of navigator.getGamepads()){ if(p&&p.connected){ gp=p; break; } } }catch(e){} }
   return gp;
 }
@@ -4521,7 +4567,8 @@ function pulseRumble(gp, strong, weak, ms){
   const dur=Math.max(20, Math.min(1500, ms||120));
   try{
     if(gp.vibrationActuator && typeof gp.vibrationActuator.playEffect==='function'){
-      gp.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:dur,strongMagnitude:s,weakMagnitude:w});
+      const r=gp.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:dur,strongMagnitude:s,weakMagnitude:w});
+      if(r && typeof r.catch==='function') r.catch(()=>{});
       return true;
     }
     if(gp.hapticActuators && gp.hapticActuators[0] && typeof gp.hapticActuators[0].pulse==='function'){
@@ -4660,13 +4707,25 @@ function resetRumblePatterns(){
 }
 function steamInputPoll(){
   const api=window.steamInput;
-  if(!api || typeof api.poll!=='function'){ SteamInput.available=false; return; }
+  if(!api || typeof api.poll!=='function'){ SteamInput.available=false; SteamInput.prev=null; Pad.steamX=Pad.steamY=Pad.steamMag=0; return; }
   let st=null;
-  try{ st=api.poll(); }catch(e){ return; }
-  if(!st){ return; }
+  try{ st=api.poll(); }catch(e){ st=null; }
+  if(!st){
+    // 橋接冇新狀態（手掣放開／斷線）→ 一定要清，唔係角色會用最後一個向量一直行
+    Pad.steamX=0; Pad.steamY=0; Pad.steamMag=0; SteamInput.prev=null;
+    return;
+  }
   SteamInput.available=true;
   if(Array.isArray(st.actions)){
-    for(const a of st.actions){ if(typeof inputAction==='function') inputAction(a); }
+    const prev=SteamInput.prev || new Set();
+    const now=new Set();
+    for(const a of st.actions){
+      now.add(a);
+      if(!prev.has(a) && typeof inputAction==='function') inputAction(a);   // 邊緣觸發：按住唔會每帧再開關
+    }
+    SteamInput.prev=now;
+  } else {
+    SteamInput.prev=new Set();
   }
   if(st.axes){
     const ax=+st.axes.x||0, ay=+st.axes.y||0, mag=Math.min(1,Math.hypot(ax,ay));
@@ -4699,7 +4758,7 @@ addEventListener('gamepadconnected', e=>{
 });
 addEventListener('gamepaddisconnected', e=>{
   if(e.gamepad.index===Pad.index){
-    Pad.connected=false; Pad.mag=0; Pad.mx=0; Pad.my=0;
+    Pad.connected=false; Pad.mag=0; Pad.mx=0; Pad.my=0; Pad.gp=null; Pad.buttons=[];
     updatePadUI();
     if(typeof toast==='function') toast('手掣已斷開');
   }
@@ -4751,23 +4810,13 @@ function padButtonDown(i){
     if(i===13) chooseOption(1);
     return;
   }
+  // 非 play 畫面：A／Start = 確認，B／Back = 返回（要先過，否則被攻擊／翻滾綁定吞咗）
+  if(G.mode!=='play'){
+    if(i===0||i===9){ uiConfirm(); return; }
+    if(i===1||i===8){ uiBack(); return; }
+  }
   const act=ACTION_ORDER.find(a=>PADBIND_BY_ACTION[a]===i);
   if(act){ inputAction(act); return; }
-  if(i===0){
-    if(G.mode==='title') startGame(false);
-    else if(G.mode==='prologue') endPrologue();
-    else if(G.mode==='win') showEpilogue();
-    else if(G.mode==='epilogue'){ clearSave(); startGame(true); }
-    else if(G.mode==='dead') retryFromSave();
-  }
-  if(i===1){
-    if(G.mode==='inventory') toggleInventory();
-    else if(G.mode==='journal') toggleJournal();
-    else if(G.mode==='travel') closeTravel();
-    else if(G.mode==='smith') closeSmith();
-    else if(G.mode==='save' && typeof closeSavePanel==='function') closeSavePanel();
-    else if(G.mode==='settings') closeSettings();
-  }
 }
 
 function openControls(){
@@ -4832,6 +4881,8 @@ function initSettingsUI(){
   wire('setA11yImportant','change',()=>{ SETTINGS.a11yImportantOnly=document.getElementById('setA11yImportant').checked; saveSettings(); });
   wire('setA11yCue','change',()=>{ SETTINGS.a11yVisualCue=document.getElementById('setA11yCue').checked; saveSettings(); });
   const rb=document.getElementById('btnRumble'); if(rb) rb.addEventListener('click',openRumblePanel);
+  wire('setClose','click',closeSettings);
+  wire('openSettings','click',e=>{ e.preventDefault(); if(G.mode==='save') closeSavePanel(); openSettings(); });
 }
 function initInputUI(){
   initSettingsUI();
@@ -4948,7 +4999,71 @@ function runSelfTest(){
   loadBindings();
   ok('按鍵預設', BIND_BY_ACTION.interact==='KeyE', BIND_BY_ACTION.interact);
   setBinding('interact','KeyQ');
-  ok('按鍵重映射', resolveKey('KeyQ')==='KeyE' && BIND_BY_ACTION.interact==='KeyQ', 'bind='+BIND_BY_ACTION.interact);
+  ok('按鍵重映射', resolveKey('KeyQ')==='KeyQ' && BIND_BY_ACTION.interact==='KeyQ', 'bind='+BIND_BY_ACTION.interact);
+  {dispatchEvent(new KeyboardEvent('keydown',{code:'KeyQ'}));
+   const down=keys['KeyQ']===true;
+   dispatchEvent(new KeyboardEvent('keyup',{code:'KeyQ'}));
+   ok('重映射 keyup 對稱', down && keys['KeyQ']===false, 'down='+down+' up='+(keys['KeyQ']===false));}
+  {player.x=1280; player.y=1580; G.mode='play'; setBinding('moveUp','KeyZ');
+   const y0=player.y; keys['KeyZ']=true; update(0.1); keys['KeyZ']=false;
+   const moved=player.y<y0-1; setBinding('moveUp','KeyW');
+   ok('重映射移動生效', moved, 'dy='+(player.y-y0).toFixed(1));}
+  {keys['KeyD']=true; clearHeldInput(); ok('失焦清輸入', !keys['KeyD']);}
+  {G.mode='play'; dispatchEvent(new KeyboardEvent('keydown',{code:'KeyO'}));
+   const opened=G.mode==='save';
+   dispatchEvent(new KeyboardEvent('keydown',{code:'Escape'}));
+   ok('O 開存檔面板', opened && G.mode==='play', 'mode='+G.mode);}
+  {G.mode='dialog'; G.gold=777; saveGame(SLOT_COUNT);
+   let g0=null; try{ g0=JSON.parse(storageGet(SLOT_COUNT)||'{}').gold; }catch(e){}
+   ok('對話中照樣存檔', g0===777, 'gold='+g0); clearSave(SLOT_COUNT); G.mode='play';}
+
+  /* ---- v0.16.1 回歸測試 ---- */
+  {G.mode='play'; openSettings(); const opened=(G.mode==='settings' && document.getElementById('settingsPanel').classList.contains('on'));
+   closeSettings(); ok('設定面板開關', opened && G.mode==='play', 'mode='+G.mode);}
+  {const link=document.getElementById('openSettings'); G.mode='play';
+   link.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+   const opened=document.getElementById('settingsPanel').classList.contains('on');
+   closeSettings(); ok('設定連結可開面板', opened);}
+  {setTouchMode(true);
+   dispatchEvent(new Event('blur')); G.mode='play'; player.atk=null; player.atkCd=0; player.stam=100;
+   touchAct('fast');
+   const works=!!player.atk; setTouchMode(false);
+   ok('失焦後觸控掣仍可用', works);}
+  {G.mode='play'; G.gold=4242;
+   const real=Storage.prototype.setItem; Storage.prototype.setItem=function(){ throw new Error('quota'); };
+   saveGame(1); Storage.prototype.setItem=real;
+   let g1=null; try{ g1=JSON.parse(storageGet(1)||'{}').gold; }catch(e){}
+   ok('存檔失敗仍有記憶體副本', g1===4242, 'gold='+g1);
+   clearSave(1);}
+  {window.steamInput={poll:()=>({axes:{x:1,y:0},actions:['journal']})};
+   G.mode='play'; if(G.mode==='journal') toggleJournal();
+   steamInputPoll(); const mag1=Pad.steamMag, opened=(G.mode==='journal');
+   steamInputPoll(); const stillOpen=(G.mode==='journal');
+   window.steamInput={poll:()=>null}; steamInputPoll(); const mag2=Pad.steamMag;
+   delete window.steamInput; SteamInput.available=false;
+   if(G.mode==='journal') toggleJournal();
+   ok('Steam 輸入邊緣觸發', opened && stillOpen && mag1>0.5, 'mag='+mag1);
+   ok('Steam 放開清零', mag2===0, 'mag='+mag2);}
+  {G.mode='play'; G.gold=999; saveGame(1);
+   G.mode='title'; openSavePanel(); doSave(1);
+   let g2=null; try{ g2=JSON.parse(storageGet(1)||'{}').gold; }catch(e){}
+   closeSavePanel(); G.mode='play';
+   ok('標題畫面唔會覆蓋存檔', g2===999, 'gold='+g2);}
+  {G.mode='title'; document.getElementById('title').classList.remove('hidden');
+   doLoad(1);
+   ok('讀檔會收埋標題', G.mode==='play' && document.getElementById('title').classList.contains('hidden'), 'mode='+G.mode);
+   clearSave(1);}
+  {try{ localStorage.setItem(SAVE_KEY_LEGACY, JSON.stringify({v:3,level:9,gold:55,ts:Date.now()})); }catch(e){}
+   clearSave(1); migrateLegacySave();
+   let legacyGone=false; try{ legacyGone=localStorage.getItem(SAVE_KEY_LEGACY)===null; }catch(e){}
+   ok('舊檔遷移只做一次', legacyGone && hasSave(1));
+   clearSave(1);}
+  {try{ localStorage.setItem(BINDINGS_KEY,'5'); }catch(e){}
+   let storeOk=true; try{ const s=loadBindingsStore(); storeOk=(s && typeof s==='object'); }catch(e){ storeOk=false; }
+   try{ localStorage.removeItem(BINDINGS_KEY); }catch(e){}
+   ok('損壞設定檔唔會拋錯', storeOk);}
+  // 上面讀檔測試換過槽，會載入該槽嘅按鍵；還原返呢個測試嘅預期狀態
+  setSlot(1); loadBindings(); setBinding('interact','KeyQ');
   saveBindings(); SETTINGS.bindings=null; loadSettings(); loadBindings();
   ok('按鍵持久化', BIND_BY_ACTION.interact==='KeyQ', 'bind='+BIND_BY_ACTION.interact);
   setBinding('interact','KeyE');
@@ -5391,12 +5506,6 @@ if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){}
     const ww=spawnEnemy('werewolf', player.x+70, player.y); enemies.push(ww);
     beginCureTransform(ww); G.transform.t=0.85; G.flash=0.35; G.demoFreeze=true;
   }
-  if(q.get('epilogue')==='1'){
-    document.getElementById('title').classList.add('hidden');
-    document.getElementById('over').classList.add('hidden');
-    G.story.truth=true; G.story.seal=true; G.side.stage=3; G.were.outcome='cured';
-    showEpilogue(); return;
-  }
   if(q.get('pose')==='dirs'){ G.mode='dirs'; document.getElementById('title').classList.add('hidden'); document.getElementById('over').classList.add('hidden'); return; }
   if(q.get('pose')==='boss'){
     player.x=1785; player.y=1150; player.facing=-0.35;
@@ -5427,6 +5536,7 @@ if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){}
   document.getElementById('over').classList.add('hidden');
   document.getElementById('invPanel').classList.remove('on');
   document.getElementById('journalPanel').classList.remove('on');
+  document.getElementById('epilogue').classList.add('hidden');
   if(loaded) toast('繼續旅程','進度已載入');
   else toast('霧沼，夜半','按 E 或點擊與村長對話');
   if(!loaded && q.get('play')!=='1' && q.get('test')!=='1'){
@@ -5439,18 +5549,51 @@ function restartGame(){
   startGame(true);
 }
 
+/* ---- 共用「確認／返回」：鍵盤 Enter、手掣 A/Start、觸控點擊都行同一套 ---- */
+function uiConfirm(){
+  if(G.mode==='title'){ startGame(false); return true; }
+  if(G.mode==='prologue'){ endPrologue(); return true; }
+  if(G.mode==='win'){ showEpilogue(); return true; }
+  if(G.mode==='epilogue'){ clearSave(); startGame(true); return true; }
+  if(G.mode==='dead'){ retryFromSave(); return true; }
+  return false;
+}
+function uiBack(){
+  if(G.mode==='inventory'){ toggleInventory(); return true; }
+  if(G.mode==='journal'){ toggleJournal(); return true; }
+  if(G.mode==='smith'){ closeSmith(); return true; }
+  if(G.mode==='travel'){ closeTravel(); return true; }
+  if(G.mode==='save'){ closeSavePanel(); return true; }
+  if(G.mode==='settings'){ closeSettings(); return true; }
+  if(G.mode==='dialog'){ closeDialog(); return true; }
+  return false;
+}
+// 觸控／滑鼠都可以點畫面開始、繼續、重試（純觸控機之前完全入唔到場）
+['title','prologue','over'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('pointerdown', e=>{ e.preventDefault(); uiConfirm(); });
+});
+
 // 讓 demo 截圖可以直接入場
 if(new URLSearchParams(location.search).get('deck')==='1' || detectSteamDeck()) applyDeckProfile(true);
 resetGame();
 cam.x=clamp(player.x-VW/2,0,W-VW);
 cam.y=clamp(player.y-VH/2,0,H-VH);
+migrateLegacySave();
 if(hasSave()) document.getElementById('titleStart').innerHTML='按 <b>ENTER</b> 繼續　·　<b>N</b> 新遊戲';
 if(new URLSearchParams(location.search).get('play')==='1'){
   startGame(new URLSearchParams(location.search).get('fresh')==='1');
 }
+// ?epilogue=1 本身都要入到場（之前只有 ?play=1&epilogue=1 有效）
+if(new URLSearchParams(location.search).get('epilogue')==='1'){
+  if(new URLSearchParams(location.search).get('play')!=='1') startGame(true);
+  document.getElementById('title').classList.add('hidden');
+  document.getElementById('over').classList.add('hidden');
+  G.story.truth=true; G.story.seal=true; G.side.stage=3; G.were.outcome='cured';
+  showEpilogue();   // 只喺開機做一次；之前放喺 startGame 會令 Enter 重開又再彈後日談
+}
 if(new URLSearchParams(location.search).get('test')==='1'){
-  migrateLegacySave();
-loadSettings();
+  loadSettings();
 applySettings();
 
 setTimeout(runSelfTest, 400);
