@@ -250,6 +250,7 @@
   .rhead{font-size:10px;letter-spacing:2px;color:#8f8468;padding:0 0 6px;border-bottom:1px solid rgba(200,162,74,.25)}
   .rpat{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;font-family:Consolas,monospace;
     font-size:12px;padding:4px 8px;width:100%}
+  .rpat.bad{border-color:#c05a5a;box-shadow:0 0 0 1px rgba(192,90,90,.35)}
   .setsel{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;padding:4px 8px;font-size:12px}
   .rrow.share{grid-template-columns:auto 1fr auto auto;margin-top:8px}
   #a11yCue{position:fixed;inset:0;z-index:60;pointer-events:none;box-shadow:inset 0 0 0 rgba(200,80,80,0)}
@@ -402,14 +403,14 @@
         <span>怪物皮 <b id="smithHide">0</b></span>
         <span>夜泣塵 <b id="smithDust">0</b></span>
       </div>
-      <div class="invHint">按 E / ESC 關閉　·　升級會即時套用</div>
+      <div class="invHint"><span data-hint-key="interact">E</span> / ESC 關閉　·　升級會即時套用</div>
     </div>
 
     <div id="travelPanel" class="panel">
       <h3>路牌 · 快速旅行</h3>
       <div id="travelList"></div>
       <div class="travelDemo">行近未發現嘅路牌會自動解鎖；解鎖狀態會寫入存檔。</div>
-      <div class="invHint">按 E / ESC 關閉</div>
+      <div class="invHint"><span data-hint-key="interact">E</span> / ESC 關閉</div>
     </div>
     <div id="touchUI" class="touchui">
       <div id="stick"><div id="knob"></div></div>
@@ -417,14 +418,14 @@
         <button class="tbtn sign" data-act="igni">炎印</button>
         <button class="tbtn sign" data-act="quen">盾印</button>
         <button class="tbtn" data-act="inv">行囊</button>
-        <button class="tbtn" data-act="interact">Ｅ</button>
+        <button class="tbtn" data-act="interact" data-hint-key="interact">E</button>
         <button class="tbtn" data-act="dodge">翻滾</button>
         <button class="tbtn" data-act="potion">藥水</button>
         <button class="tbtn big" data-act="fast" style="grid-column:3">斬</button>
         <button class="tbtn big" data-act="heavy" style="grid-column:3">重斬</button>
       </div>
     </div>
-    <div id="prompt">Ｅ　對話</div>
+    <div id="prompt"><span data-hint-key="interact">E</span>　對話</div>
     <div id="toast"></div>
   <div id="a11yCue"></div>
     <div id="hurt"></div>
@@ -514,9 +515,9 @@
       <div class="tsub">A dark-fantasy vertical slice · pure Canvas 2D</div>
       <div class="tstart" id="titleStart">按 <b>ENTER</b> 開始</div>
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
-      <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　1／2／3 法印　·　E 互動　·　J 日誌</div>
+      <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　<span data-hint-key="igni">1</span>／<span data-hint-key="aard">2</span>／<span data-hint-key="quen">3</span> 法印　·　<span data-hint-key="interact">E</span> 互動　·　<span data-hint-key="journal">J</span> 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.16.1 · 112 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.16.3 · 120 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -535,6 +536,7 @@
 'use strict';
 
 /* ===== 0. 基本設定 ===== */
+/* ---- part-01.js · 0. 基本設定 ---- */
 /* ---- part-01.js · 0. 基本設定 ---- */
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -558,6 +560,7 @@ const TAU = Math.PI*2;
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 
 /* ===== 1. 音效（極簡 WebAudio，首次互動後才啟動） ===== */
+/* ---- part-02.js · 1. 音效（極簡 WebAudio，首次互動後才啟動） ---- */
 /* ---- part-02.js · 1. 音效（極簡 WebAudio，首次互動後才啟動） ---- */
 const AudioFX = (function(){
   let ac=null, muted=false;
@@ -686,6 +689,7 @@ const AudioFX = (function(){
 
 /* ===== 2. 世界資料 ===== */
 /* ---- part-03.js · 2. 世界資料 ---- */
+/* ---- part-03.js · 2. 世界資料 ---- */
 const pathPts = [[1240,1520],[1560,1600],[1920,1720],[2320,1860],[2760,2000],[3200,2160],[3620,2320],[3980,2460]];
 const swamp = {x:4160,y:2670,rx:660,ry:430};
 const pond = {x:1000,y:2500,rx:430,ry:250};
@@ -799,6 +803,7 @@ addProp({kind:'chest', x:3752, y:2196});
 addSolid({type:'circle', x:3752, y:2200, r:12});
 
 /* ===== 地圖美化：村莊、墓園、沼澤、池塘、廢塔、伐木營 ===== */
+/* ---- part-04.js · 地圖美化：村莊、墓園、沼澤、池塘、廢塔、伐木營 ---- */
 // 圍欄
 [[840,1090,0],[840,1170,0],[1000,860,Math.PI/2],[1520,940,0.2],[1720,1400,0],[660,1520,0]].forEach(f=>{
   addProp({kind:'fence', x:f[0], y:f[1], rot:f[2]});
@@ -858,6 +863,7 @@ addSolid({type:'circle', x:4500, y:2804, r:18});
 addProp({kind:'lair', x:2160, y:1200});
 
 /* ===== 新區域：廢塔（東北）、伐木營地（東南）、池塘（西南） ===== */
+/* ---- part-05.js · 新區域：廢塔（東北）、伐木營地（東南）、池塘（西南） ---- */
 // 廢塔：石柱環 + 營火 + 骨頭
 addProp({kind:'fire', x:4700, y:900});
 addSolid({type:'circle', x:4700, y:900, r:18});
@@ -883,6 +889,7 @@ addProp({kind:'cart', x:640, y:2380, rot:1.2});
 addSolid({type:'circle', x:640, y:2386, r:15});
 
 /* ===== 3. 地面分塊（tile）預渲染 ===== */
+/* ---- part-06.js · 3. 地面分塊（tile）預渲染 ---- */
 /* ---- part-04.js · 3. 地面分塊（tile）預渲染 ---- */
 const TILE=512, TILE_MAX=40;
 const tileCache=new Map();
@@ -1033,6 +1040,7 @@ function drawGround(){
 }
 
 /* ===== 4. 狀態 ===== */
+/* ---- part-07.js · 4. 狀態 ---- */
 /* ---- part-05.js · 4. 狀態 ---- */
 const G = {
   mode:'title',
@@ -1251,6 +1259,7 @@ function applySettings(){
 }
 
 /* ===== 5. 生成 / 重設 ===== */
+/* ---- part-08.js · 5. 生成 / 重設 ---- */
 /* ---- part-06.js · 5. 生成 / 重設 ---- */
 function makeNPC(id, name, x, y, color){
   return {kind:'npc', id, name, x, y, r:14, color, facing:Math.PI/2, talk:0};
@@ -1348,11 +1357,13 @@ function resetGame(){
 }
 
 /* ===== 6. 輸入 ===== */
+/* ---- part-09.js · 6. 輸入 ---- */
 /* ---- part-07.js · 6. 輸入 ---- */
 const keys={};
 const mouse={x:VW/2, y:VH/2, left:false, right:false};
 
 /* ===== v0.13：可重映射鍵盤輸入層 ===== */
+/* ---- part-10.js · v0.13：可重映射鍵盤輸入層 ---- */
 const ACTION_LABELS={moveUp:'向前',moveDown:'向後',moveLeft:'向左',moveRight:'向右',sprint:'衝刺',attack:'快攻',strong:'重斬',dodge:'翻滾',interact:'互動',potion:'藥水',igni:'炎印',aard:'震印',quen:'盾印',inventory:'行囊',journal:'日誌',travel:'快速旅行',mute:'靜音'};
 const ACTION_ORDER=Object.keys(ACTION_LABELS);
 const BIND_BY_ACTION={};
@@ -1379,6 +1390,7 @@ function loadBindings(slot){
 function reindexBindings(){
   for(const k in ACTION_BY_CODE) delete ACTION_BY_CODE[k];
   for(const k of ACTION_ORDER){ const c=BIND_BY_ACTION[k]; if(c) ACTION_BY_CODE[c]=k; }
+  if(typeof renderKeyHints==='function') renderKeyHints();
 }
 function saveBindings(){
   const slot = (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
@@ -1401,6 +1413,19 @@ function resolveKey(code){
 function keyDown(action){
   const c=BIND_BY_ACTION[action];
   return !!(c && keys[c]);
+}
+
+/* ---- HUD 提示：跟當前綁定顯示（重映射／換槽之後唔會再顯示舊鍵） ---- */
+function hudKey(action,fallback){
+  const c=(BIND_BY_ACTION&&BIND_BY_ACTION[action])||fallback||'';
+  return c ? (typeof keyLabel==='function'?keyLabel(c):c) : '';
+}
+function renderKeyHints(){
+  const nodes=document.querySelectorAll('[data-hint-key]');
+  for(const el of nodes){
+    const t=hudKey(el.getAttribute('data-hint-key'));
+    if(t) el.textContent=t;
+  }
 }
 function captureRejected(code){
   if(!code) return true;
@@ -1642,6 +1667,7 @@ function tryPending(){
 }
 
 /* ===== 7. 幾何 / 碰撞 ===== */
+/* ---- part-11.js · 7. 幾何 / 碰撞 ---- */
 /* ---- part-08.js · 7. 幾何 / 碰撞 ---- */
 function resolveCircle(x,y,r){
   let px=x, py=y;
@@ -1671,6 +1697,7 @@ function inWater(x,y){
 }
 
 /* ===== 8. 戰鬥 ===== */
+/* ---- part-12.js · 8. 戰鬥 ---- */
 /* ---- part-09.js · 8. 戰鬥 ---- */
 function angDiff(a,b){
   let d=(a-b)%TAU;
@@ -2114,7 +2141,7 @@ function interact(){
   const claw=props.find(p=>p.kind==='claw' && !p.taken && G.were.stage===1 && dist(player,p)<72);
   if(claw){ clawInteract(claw); return; }
   if(dist(player,runePos)<105){ runeDialog(); return; }
-  if(G.pond.stage===1 && G.pond.killed>=3 && !G.pond.nest && dist(player,pondNestPos)<110){ toast('用炎印燒掉巢穴','按 1 施放炎印'); return; }
+  if(G.pond.stage===1 && G.pond.killed>=3 && !G.pond.nest && dist(player,pondNestPos)<110){ toast('用炎印燒掉巢穴','按 '+hudKey('igni','Digit1')+' 施放炎印'); return; }
   const spNow=TRAVEL.find(p=>dist(player,p)<100);
   if(spNow){ openTravel(); return; }
   if(dist(player,boardPos)<92){ boardInteract(); return; }
@@ -2137,7 +2164,7 @@ function interact(){
     }
   }
   if(G.quest===2 && dist(player,nest)<110){
-    toast('需要用炎印點燃','按 1 施放炎印');
+    toast('需要用炎印點燃','按 '+hudKey('igni','Digit1')+' 施放炎印');
     return;
   }
   if(G.quest===1 && dist(player,mill)<200){
@@ -2510,7 +2537,7 @@ function unlockTravel(p){
   if(G.travel.unlocked.includes(p.id)) return false;
   G.travel.unlocked.push(p.id);
   saveGame();
-  toast('發現傳送點：'+p.name,'按 E 開啟路牌快速旅行');
+  toast('發現傳送點：'+p.name,'按 '+hudKey('interact','KeyE')+' 開啟路牌快速旅行');
   return true;
 }
 function doUpgrade(kind){
@@ -2729,7 +2756,9 @@ function openSettings(){
   if(m) m.value = Math.round((SETTINGS.music==null?0.9:SETTINGS.music)*100);
   if(d) d.checked = !!SETTINGS.dirs;
   if(a) a.checked = SETTINGS.autosave !== false;
-  if(r) r.value = Math.round((SETTINGS.rumble==null?0.7:SETTINGS.rumble)*100);
+  { const cur=(typeof getRumbleConfig==='function')?getRumbleConfig():null;
+    const amp=cur?cur.intensity:(SETTINGS.rumble==null?0.7:SETTINGS.rumble);
+    if(r) r.value = Math.round((amp==null?0.7:amp)*100); }
   const pt=document.getElementById('setPadTheme'); if(pt) pt.value=SETTINGS.padTheme||'auto';
   const ar=document.getElementById('setA11yReduce'), ai=document.getElementById('setA11yImportant'), ac=document.getElementById('setA11yCue');
   if(ar) ar.checked=!!SETTINGS.a11yReduce;
@@ -2803,7 +2832,7 @@ function showPrologue(){
 function endPrologue(){
   document.getElementById('prologue').classList.add('hidden');
   G.mode='play'; G.prologue=false;
-  toast('霧沼，夜半','按 E 或點擊與村長對話');
+  toast('霧沼，夜半','按 '+hudKey('interact','KeyE')+' 或點擊與村長對話');
 }
 function retryFromSave(){
   document.getElementById('over').classList.add('hidden');
@@ -2833,6 +2862,7 @@ function showEnding(kind){
 }
 
 /* ===== 10. 粒子 / 浮字 ===== */
+/* ---- part-13.js · 10. 粒子 / 浮字 ---- */
 /* ---- part-10.js · 10. 粒子 / 浮字 ---- */
 function showEpilogue(){
   const t=G.story.truth, seal=G.story.seal;
@@ -2882,6 +2912,7 @@ function floatText(x,y,txt,color){
 }
 
 /* ===== 11. 更新 ===== */
+/* ---- part-14.js · 11. 更新 ---- */
 /* ---- part-11.js · 11. 更新 ---- */
 function update(dt){
   if(typeof CONTROLS_OPEN!=='undefined' && CONTROLS_OPEN){ G.time+=dt; return; }
@@ -3041,14 +3072,15 @@ function update(dt){
   const nearLoot=loot.find(l=>dist(player,l)<78);
   const pr=document.getElementById('prompt');
   let promptText=null;
-  if(nearLoot) promptText='Ｅ　拾取 '+((ITEMS[nearLoot.item]&&ITEMS[nearLoot.item].name)||nearLoot.item);
-  else if(!chestOpened && dist(player,chestPos)<95) promptText='Ｅ　打開木箱';
-  else if(G.quest===6 && dist(player,shrinePos)<95) promptText='Ｅ　調查神龕';
-  else if(G.were.stage===1 && props.some(p=>p.kind==='claw' && !p.taken && dist(player,p)<72)) promptText='Ｅ　調查爪痕';
-  else if(G.were.stage===2 && !G.were.outcome && enemies.some(e=>e.type==='werewolf' && e.state!=='dead' && dist(player,e)<95)) promptText='Ｅ　與狼人對峙';
-  else if(dist(player,runePos)<105) promptText='Ｅ　調查石碑';
-  else if(TRAVEL.some(p=>dist(player,p)<100)) promptText='Ｅ　路牌（快速旅行）';
-  else if(near) promptText='Ｅ　與'+near.name+'對話';
+  const IK=hudKey('interact','KeyE');
+  if(nearLoot) promptText=IK+'　拾取 '+((ITEMS[nearLoot.item]&&ITEMS[nearLoot.item].name)||nearLoot.item);
+  else if(!chestOpened && dist(player,chestPos)<95) promptText=IK+'　打開木箱';
+  else if(G.quest===6 && dist(player,shrinePos)<95) promptText=IK+'　調查神龕';
+  else if(G.were.stage===1 && props.some(p=>p.kind==='claw' && !p.taken && dist(player,p)<72)) promptText=IK+'　調查爪痕';
+  else if(G.were.stage===2 && !G.were.outcome && enemies.some(e=>e.type==='werewolf' && e.state!=='dead' && dist(player,e)<95)) promptText=IK+'　與狼人對峙';
+  else if(dist(player,runePos)<105) promptText=IK+'　調查石碑';
+  else if(TRAVEL.some(p=>dist(player,p)<100)) promptText=IK+'　路牌（快速旅行）';
+  else if(near) promptText=IK+'　與'+near.name+'對話';
   if(promptText){ pr.textContent=promptText; pr.classList.add('on'); }
   else pr.classList.remove('on');
 
@@ -3337,6 +3369,7 @@ function drawMinimap(){
 }
 
 /* ===== 12. 繪圖 ===== */
+/* ---- part-15.js · 12. 繪圖 ---- */
 /* ---- part-12.js · 12. 繪圖 ---- */
 function worldToScreen(x,y){ return {x:x-cam.x, y:y-cam.y}; }
 
@@ -4358,6 +4391,7 @@ function drawQuestMarker(){
 }
 
 /* ===== 13. HUD 更新 ===== */
+/* ---- part-16.js · 13. HUD 更新 ---- */
 /* ---- part-13.js · 13. HUD 更新 ---- */
 function updateHUD(){
   document.getElementById('hpFill').style.width=(player.hp/player.maxHp*100)+'%';
@@ -4382,6 +4416,7 @@ function updateHUD(){
 }
 
 /* ===== 14. 主循環 ===== */
+/* ---- part-17.js · 14. 主循環 ---- */
 /* ---- part-14.js · 14. 主循環 ---- */
 let last=performance.now();
 let lastPlaying=null;
@@ -4404,6 +4439,7 @@ function loop(now){
 }
 
 /* ===== 16. 觸控（v0.12） ===== */
+/* ---- part-18.js · 16. 觸控（v0.12） ---- */
 /* ---- 觸控 / 虛擬搖桿（v0.12） ---- */
 const Touch = { active:false, x:0, y:0, mag:0, forced:false };
 
@@ -4483,6 +4519,7 @@ function touchAct(act){
 })();
 
 /* ===== 16. 手掣＋按鍵重映射（v0.13） ===== */
+/* ---- part-19.js · 16. 手掣＋按鍵重映射（v0.13） ---- */
 /* ---- part-14c.js · 16. 手掣（Gamepad API）＋按鍵重映射 UI（v0.13） ---- */
 const Pad={connected:false,id:'',index:-1,mx:0,my:0,mag:0,buttons:[],gp:null};
 const PAD_DEAD=0.28;
@@ -4536,6 +4573,7 @@ function getRumbleConfig(slot){
   return cfg;
 }
 function saveRumbleConfig(cfg){
+  cfg = sanitizeRumbleConfig(cfg);
   const s = (typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
   if(typeof saveRumbleStore==='function'){
     const store = loadRumbleStore(); store[s]=cfg; saveRumbleStore(store);
@@ -4554,6 +4592,18 @@ function parseRumblePattern(str){
     if(out.length>8) return null;
   }
   return out.length?out:[];
+}
+function sanitizeRumbleConfig(cfg){
+  const src=cfg||{};
+  const pats=(src.patterns&&typeof src.patterns==='object'&&!Array.isArray(src.patterns))?src.patterns:{};
+  const out={enabled:src.enabled!==false, intensity:0.7, patterns:{}};
+  const iv=Number(src.intensity);
+  out.intensity=isFinite(iv)?Math.max(0,Math.min(1,iv)):0.7;
+  for(const k of ['hurt','hit','heavy','boss']){
+    const raw=String(pats[k]==null?DEFAULT_RUMBLE.patterns[k]:pats[k]).trim();
+    out.patterns[k]=(parseRumblePattern(raw)===null)?String(DEFAULT_RUMBLE.patterns[k]):raw;
+  }
+  return out;
 }
 function findPadForRumble(){
   let gp=Pad.gp;
@@ -4584,7 +4634,7 @@ function a11yCue(){
 }
 function encodeRumbleCode(cfg){
   try{
-    const src=cfg||getRumbleConfig();
+    const src=sanitizeRumbleConfig(cfg||getRumbleConfig());
     const payload={v:1, enabled:!!src.enabled, intensity:Math.round((src.intensity||0)*100)/100, patterns:{}};
     for(const k of ['hurt','hit','heavy','boss']) payload.patterns[k]=String(src.patterns[k]||'');
     const b=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -4599,10 +4649,11 @@ function decodeRumbleCode(code){
   while(s.length%4) s+='=';
   let o=null;
   try{ o=JSON.parse(decodeURIComponent(escape(atob(s)))); }catch(e){ return null; }
-  if(!o || o.v!==1 || !o.patterns) return null;
+  if(!o || o.v!==1 || !o.patterns || typeof o.patterns!=='object' || Array.isArray(o.patterns)) return null;
   const cfg=Object.assign({},DEFAULT_RUMBLE);
   cfg.enabled=!!o.enabled;
-  cfg.intensity=Math.max(0,Math.min(1,Number(o.intensity)||0));
+  const iv=Number(o.intensity);
+  cfg.intensity=isFinite(iv)?Math.max(0,Math.min(1,iv)):0;
   cfg.patterns={};
   for(const k of ['hurt','hit','heavy','boss']){
     const raw=String(o.patterns[k]==null?'':o.patterns[k]);
@@ -4692,11 +4743,22 @@ function renderRumblePanel(){
   const amp=document.getElementById('rumbleIntensity'); if(amp) amp.value=Math.round((cfg.intensity==null?0.7:cfg.intensity)*100);
   const slotEl=document.getElementById('rumbleSlot'); if(slotEl) slotEl.textContent='存檔槽 '+(typeof CUR_SLOT!=='undefined'?CUR_SLOT:1);
   list.querySelectorAll('[data-rprev]').forEach(b=>b.addEventListener('click',()=>playRumblePattern(b.dataset.rprev)));
-  list.querySelectorAll('[data-rk]').forEach(inp=>inp.addEventListener('change',()=>{
-    const cfg2=getRumbleConfig();
-    cfg2.patterns[inp.dataset.rk]=inp.value.trim();
-    saveRumbleConfig(cfg2);
-  }));
+  list.querySelectorAll('[data-rk]').forEach(inp=>{
+    inp.addEventListener('input',()=>inp.classList.remove('bad'));
+    inp.addEventListener('change',()=>{
+      const raw=inp.value.trim();
+      if(parseRumblePattern(raw)===null){
+        inp.classList.add('bad');
+        inp.value=String(getRumbleConfig().patterns[inp.dataset.rk]||'');
+        if(typeof toast==='function') toast('震動格式唔啱','用「毫秒:強:弱」，例如 70:0.9:0.5（最多 8 段）');
+        return;
+      }
+      inp.classList.remove('bad');
+      const cfg2=getRumbleConfig();
+      cfg2.patterns[inp.dataset.rk]=raw;
+      saveRumbleConfig(cfg2);
+    });
+  });
 }
 function resetRumblePatterns(){
   const cfg=getRumbleConfig();
@@ -4906,6 +4968,7 @@ function initInputUI(){
 initInputUI();
 
 /* ===== 15. 啟動 ===== */
+/* ---- part-20.js · 15. 啟動 ---- */
 /* ---- part-15.js · 15. 啟動 ---- */
 function runSelfTest(){
   document.getElementById('title').classList.add('hidden');
@@ -5068,6 +5131,24 @@ function runSelfTest(){
   ok('按鍵持久化', BIND_BY_ACTION.interact==='KeyQ', 'bind='+BIND_BY_ACTION.interact);
   setBinding('interact','KeyE');
   ok('按鍵衝突回退', BIND_BY_ACTION.interact==='KeyE', 'bind='+BIND_BY_ACTION.interact);
+
+  // v0.16.2: HUD 提示跟綁定／槽位
+  {setBinding('igni','KeyZ');
+   const el=document.querySelector('[data-hint-key="igni"]');
+   ok('HUD 提示跟綁定', hudKey('igni')==='Z' && el && el.textContent==='Z', 'hint='+(el&&el.textContent));
+   setBinding('igni','Digit1');}
+  {setBinding('interact','KeyQ');
+   const n=npcs.find(v=>v.id==='elder'); const px=player.x, py=player.y;
+   const prevMode=G.mode; player.x=n.x; player.y=n.y+30; G.mode='play';
+   try{ update(0.05); }catch(e){}
+   const prompt=document.getElementById('prompt');
+   ok('互動提示用當前鍵', hudKey('interact')==='Q' && /^Q/.test(prompt.textContent||''), 'prompt='+(prompt.textContent||''));
+   player.x=px; player.y=py; G.mode=prevMode; setBinding('interact','KeyE');}
+  {setSlot(2); loadBindings(2);
+   const el=document.querySelector('[data-hint-key="interact"]');
+   const want=keyLabel(BIND_BY_ACTION.interact);
+   ok('換槽提示同步', el && el.textContent===want, 'hint='+(el&&el.textContent)+' want='+want);
+   setSlot(1); loadBindings(1);}
   const mockPad={index:7,id:'Mock Controller (STANDARD GAMEPAD)',connected:true,axes:[0.7,0,0,0],
     buttons:Array.from({length:16},()=>({pressed:false,value:0}))};
   navigator.getGamepads=()=>[mockPad];
@@ -5143,6 +5224,27 @@ function runSelfTest(){
   const rpOk=!!rpEl && rpEl.classList.contains('on') && document.querySelectorAll('#rumbleList .rrow').length>=4;
   closeRumblePanel();
   ok('震動編輯面板', rpOk, rpEl?rpEl.className:'null');
+
+  // v0.16.3: 震動 pattern 驗證 / 分享碼 round-trip
+  {const before=getRumbleConfig().patterns.hit;
+   const inp=document.querySelector('#rumbleList [data-rk="hit"]');
+   inp.value='abc'; inp.dispatchEvent(new Event('change'));
+   const after=getRumbleConfig().patterns.hit;
+   ok('壞震動 pattern 會被拒', after===before && inp.classList.contains('bad'), 'hit='+after);
+   inp.value=before; inp.dispatchEvent(new Event('change'));}
+  {const cfg=getRumbleConfig(); cfg.patterns.hurt='80:0.6:0.3'; saveRumbleConfig(cfg);
+   const code=encodeRumbleCode(getRumbleConfig());
+   const back=decodeRumbleCode(code);
+   ok('震動碼 round-trip', !!back && back.patterns.hurt==='80:0.6:0.3'
+      && Math.abs(back.intensity-getRumbleConfig().intensity)<0.01, 'code='+String(code).slice(0,10));}
+  {const mk=obj=>'WR1-'+btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+   const bad1=decodeRumbleCode('WR1-@@@'), bad2=decodeRumbleCode('not-a-code');
+   const bad3=decodeRumbleCode(mk({v:1,patterns:[]}));
+   const bad4=decodeRumbleCode(mk({v:1,patterns:{hurt:'1:2'}}));
+   ok('壞震動碼拒絕', bad1===null && bad2===null && bad3===null && bad4===null);}
+  {const mk=obj=>'WR1-'+btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+   const d=decodeRumbleCode(mk({v:1,enabled:true,intensity:9,patterns:{hurt:'50:0.5:0.2'}}));
+   ok('震動強度夾 0–1', !!d && d.intensity===1, 'i='+(d&&d.intensity));}
   SETTINGS.padTheme='ps'; const thPs=padType()==='ps' && padGlyph(0)==='✕';
   SETTINGS.padTheme='xbox'; const thXb=padType()==='xbox' && padGlyph(0)==='Ⓐ';
   SETTINGS.padTheme='auto'; Pad.id='Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
@@ -5153,6 +5255,11 @@ function runSelfTest(){
   setSlot(1); const slotAmp=getRumbleConfig().intensity;
   setSlot(2); const slotAmp2=getRumbleConfig().intensity;
   ok('每槽震動設定', Math.abs(slotAmp-0.3)<0.001 && Math.abs(slotAmp2-0.9)<0.001, 's1='+slotAmp+' s2='+slotAmp2);
+  {setSlot(1); openSettings();
+   const shown=+document.getElementById('setRumble').value;
+   const want=Math.round(getRumbleConfig(1).intensity*100);
+   closeSettings(); setSlot(2);
+   ok('設定滑桿跟當前槽', Math.abs(shown-want)<=1, 'shown='+shown+' want='+want);}
   { const c=getRumbleConfig(); c.enabled=false; saveRumbleConfig(c); }
   ok('每槽震動可關', playRumblePattern('hurt')===false);
   { const c=getRumbleConfig(); c.enabled=true; c.intensity=0.7; saveRumbleConfig(c); }
@@ -5538,7 +5645,7 @@ if(q.get('show')==='settings') setTimeout(()=>{ try{ openSettings(); }catch(e){}
   document.getElementById('journalPanel').classList.remove('on');
   document.getElementById('epilogue').classList.add('hidden');
   if(loaded) toast('繼續旅程','進度已載入');
-  else toast('霧沼，夜半','按 E 或點擊與村長對話');
+  else toast('霧沼，夜半','按 '+hudKey('interact','KeyE')+' 或點擊與村長對話');
   if(!loaded && q.get('play')!=='1' && q.get('test')!=='1'){
     showPrologue();
   }
