@@ -254,10 +254,10 @@
   .setsel{background:rgba(5,8,12,.85);border:1px solid rgba(200,162,74,.35);color:#e8c974;padding:4px 8px;font-size:12px}
   .rrow.share{grid-template-columns:auto 1fr auto auto;margin-top:8px}
   .rrow.qrrow{grid-template-columns:auto 160px 1fr;align-items:center;margin-top:8px}
-  #rumbleQr{position:static;inset:auto;background:#fff;padding:4px;width:150px;height:150px;border-radius:2px;display:block}
+  #rumbleQr{position:static;inset:auto;background:#fff;padding:4px;width:auto;height:auto;border-radius:2px;display:block;image-rendering:pixelated}
   .qrhint{font-size:11px;color:#8f8468;line-height:1.6}
   #achPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;max-height:78vh;
-    overflow-y:auto;padding:20px 24px;z-index:8;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
+    overflow-y:auto;padding:20px 24px;z-index:11;background:linear-gradient(180deg,rgba(12,16,21,.975),rgba(6,8,11,.985));
     border:1px solid rgba(200,162,74,.5);box-shadow:0 30px 90px rgba(0,0,0,.85);display:none}
   #achPanel.on{display:block}
   #achPanel h3{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:#e8c974;margin:0 0 12px;font-weight:400}
@@ -504,6 +504,7 @@
     <div id="achPanel" class="panel">
       <h3>成就 · <span id="achCount">0 / 0</span></h3>
       <div id="achList"></div>
+      <div class="bindFoot"><button id="achClose" class="setBtn">關閉</button></div>
       <div class="invHint">ESC 關閉 · 成就即時解鎖並記錄</div>
     </div>
   <div id="dialog" class="hidden">
@@ -543,7 +544,7 @@
       <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　<span data-hint-key="igni">1</span>／<span data-hint-key="aard">2</span>／<span data-hint-key="quen">3</span> 法印　·　<span data-hint-key="interact">E</span> 互動　·　<span data-hint-key="journal">J</span> 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.17 · 129 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.17.1 · 134 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -2632,7 +2633,7 @@ function storageGet(slot){ const k = slotKey(slot||CUR_SLOT);
 function storageSet(v, slot){ const k = slotKey(slot||CUR_SLOT);
   memSaves[k]=v;
   try{ localStorage.setItem(k, v); }catch(e){} }
-function hasSave(slot){ return !!storageGet(slot); }
+function hasSave(slot){ return !!storageGet(slot) || (!cloudDeleted(slot) && !!cloudRead(slot)); }
 function migrateLegacySave(){
   try{
     const old = localStorage.getItem(SAVE_KEY_LEGACY);
@@ -2658,14 +2659,17 @@ function saveGame(slot){
       dead:enemies.filter(e=>e.state==='dead').map(e=>e.uid),
       loot:loot.map(l=>({x:Math.round(l.x), y:Math.round(l.y), item:l.item})),
       chestOpened, tombwispSpawned, shrineActive};
-    storageSet(JSON.stringify(data), slot||CUR_SLOT);
-    if(typeof cloudWrite==='function') cloudWrite(JSON.stringify(data), slot||CUR_SLOT);
+    const s=slot||CUR_SLOT;
+    unmarkCloudDeleted(s);
+    storageSet(JSON.stringify(data), s);
+    if(typeof cloudWrite==='function') cloudWrite(JSON.stringify(data), s);
     flashSave();
   }catch(e){}
 }
 function loadGame(slot){
   let raw=storageGet(slot||CUR_SLOT);
-  if(!raw && typeof cloudRead==='function') raw=cloudRead(slot||CUR_SLOT);
+  const cs=slot||CUR_SLOT;
+  if(!raw && typeof cloudRead==='function' && !cloudDeleted(cs)) raw=cloudRead(cs);
   if(!raw) return false;
   let d; try{ d=JSON.parse(raw); }catch(e){ return false; }
   resetGame();
@@ -2732,10 +2736,15 @@ const ACHIEVEMENTS=[
   {id:'cure_werewolf', steam:'ACH_CURE_WEREWOLF', name:'解除詛咒', desc:'治好狼人', icon:'🌙'},
   {id:'side_complete', steam:'ACH_SIDE_COMPLETE', name:'四處奔走', desc:'完成全部四個支線委託', icon:'🗺'}
 ];
-const ACH_KEY='whitewolf_achievements';
+const ACH_KEY_REAL='whitewolf_achievements';
+let ACH_KEY=ACH_KEY_REAL;
+let ACH_STEAM_OK=true;
 function loadAchievements(){
-  try{ const raw=localStorage.getItem(ACH_KEY); G.ach={unlocked:(raw?JSON.parse(raw):{})||{}}; }
-  catch(e){ G.ach={unlocked:{}}; }
+  try{
+    const raw=localStorage.getItem(ACH_KEY);
+    const o=raw?JSON.parse(raw):{};
+    G.ach={unlocked:(o && typeof o==='object' && !Array.isArray(o))?o:{}};
+  }catch(e){ G.ach={unlocked:{}}; }
 }
 function saveAchievements(){ try{ localStorage.setItem(ACH_KEY, JSON.stringify(G.ach.unlocked||{})); }catch(e){} }
 function achUnlocked(id){ return !!(G.ach && G.ach.unlocked && G.ach.unlocked[id]); }
@@ -2743,7 +2752,12 @@ function unlockAchievement(id){
   const a=ACHIEVEMENTS.find(x=>x.id===id); if(!a || achUnlocked(id)) return false;
   G.ach=G.ach||{unlocked:{}}; G.ach.unlocked[id]=Date.now(); saveAchievements();
   if(typeof toast==='function') toast('成就解鎖：'+a.name, a.desc);
-  try{ if(window.steamAchievements && typeof window.steamAchievements.activate==='function') window.steamAchievements.activate(a.steam); }catch(e){}
+  try{
+    if(ACH_STEAM_OK && window.steamAchievements && typeof window.steamAchievements.activate==='function'){
+      window.steamAchievements.activate(a.steam);
+      if(typeof window.steamAchievements.store==='function') window.steamAchievements.store();
+    }
+  }catch(e){}
   if(document.getElementById('achPanel') && document.getElementById('achPanel').classList.contains('on')) renderAchievements();
   return true;
 }
@@ -2761,6 +2775,10 @@ function checkAchievements(){
   if(G.side.stage===3 && G.pond.stage===3 && G.were.stage===4 && G.tower.stage===2) unlockAchievement('side_complete');
   return ACHIEVEMENTS.filter(a=>achUnlocked(a.id)).length;
 }
+function tickAchievements(dt){
+  G.achT=(G.achT||0)+dt;
+  if(G.achT>=1.2){ G.achT=0; checkAchievements(); }
+}
 function openAchievements(){ renderAchievements(); const p=document.getElementById('achPanel'); if(p) p.classList.add('on'); }
 function closeAchievements(){ const p=document.getElementById('achPanel'); if(p) p.classList.remove('on'); }
 function renderAchievements(){
@@ -2777,15 +2795,21 @@ function renderAchievements(){
   }).join('');
 }
 function cloudSaveName(slot){ return 'whitewolf_save_slot'+(slot||CUR_SLOT)+'.json'; }
+function cloudDeleteKey(slot){ return 'whitewolf_cloud_deleted_slot'+(slot||CUR_SLOT); }
+function cloudDeleted(slot){ try{ return !!localStorage.getItem(cloudDeleteKey(slot)); }catch(e){ return false; } }
+function markCloudDeleted(slot){ try{ localStorage.setItem(cloudDeleteKey(slot), String(Date.now())); }catch(e){} }
+function unmarkCloudDeleted(slot){ try{ localStorage.removeItem(cloudDeleteKey(slot)); }catch(e){} }
+function cloudDelete(slot){ try{ if(window.steamCloud && typeof window.steamCloud.delete==='function') window.steamCloud.delete(cloudSaveName(slot)); }catch(e){} }
 function cloudWrite(raw, slot){ try{ if(window.steamCloud && typeof window.steamCloud.write==='function') window.steamCloud.write(cloudSaveName(slot), raw); }catch(e){} }
 function cloudRead(slot){ try{ if(window.steamCloud && typeof window.steamCloud.read==='function'){ const v=window.steamCloud.read(cloudSaveName(slot)); return v||null; } }catch(e){} return null; }
 
-function clearSave(slot){ const k = slotKey(slot||CUR_SLOT);
-  try{ localStorage.removeItem(k); }catch(e){} delete memSaves[k]; }
+function clearSave(slot){ const s=slot||CUR_SLOT, k=slotKey(s);
+  try{ localStorage.removeItem(k); }catch(e){} delete memSaves[k];
+  markCloudDeleted(s); cloudDelete(s); }
 
 /* ---- v0.10：存檔面板 / 設定面板 ---- */
 function slotMeta(n){
-  const raw = storageGet(n); if(!raw) return null;
+  const raw = storageGet(n) || (!cloudDeleted(n) ? cloudRead(n) : null); if(!raw) return null;
   try{ const d = JSON.parse(raw);
     return { level:d.level||1, gold:d.gold||0, quest:d.quest||0, ts:d.ts||0,
              hp:Math.round(d.hp||0), maxHp:d.maxHp||0, x:Math.round(d.x||0), y:Math.round(d.y||0) };
@@ -3044,6 +3068,7 @@ function update(dt){
   // 自動存檔（每 20 秒）
   G.saveTimer=(G.saveTimer||0)+dt;
   if(G.saveTimer>20){ G.saveTimer=0; if(SETTINGS.autosave!==false) saveGame(); }
+  tickAchievements(dt);
 
   // 路牌解鎖（行近 170px）
   for(const tp of TRAVEL){ if(dist(player,tp) < 170) unlockTravel(tp); }
@@ -4837,6 +4862,7 @@ function drawRumbleQR(){
     const qr=qrcode(0,'M'); qr.addData(rumbleShareUrl()); qr.make();
     const n=qr.getModuleCount(), cell=Math.max(2,Math.floor(150/n));
     cv.width=n*cell; cv.height=n*cell;
+    cv.style.width=(n*cell)+'px'; cv.style.height=(n*cell)+'px';
     const c=cv.getContext('2d');
     c.fillStyle='#ffffff'; c.fillRect(0,0,cv.width,cv.height);
     c.fillStyle='#000000';
@@ -5080,6 +5106,7 @@ function initInputUI(){
   const rEn=document.getElementById('rumbleEnabled'); if(rEn) rEn.addEventListener('change',()=>{ setRumbleValue('enabled', rEn.checked); renderRumblePanel(); });
   const rAmp=document.getElementById('rumbleIntensity'); if(rAmp) rAmp.addEventListener('input',()=>{ setRumbleValue('intensity', (+rAmp.value)/100); });
   const achBtn=document.getElementById('btnAch'); if(achBtn) achBtn.addEventListener('click',openAchievements);
+  const achClose=document.getElementById('achClose'); if(achClose) achClose.addEventListener('click',closeAchievements);
   const btn=document.getElementById('btnControls');
   if(btn) btn.addEventListener('click',openControls);
   const reset=document.getElementById('bindReset');
@@ -5094,6 +5121,7 @@ initInputUI();
 /* ---- part-20.js · 15. 啟動 ---- */
 /* ---- part-15.js · 15. 啟動 ---- */
 function runSelfTest(){
+  const realAchKey=ACH_KEY; ACH_KEY='whitewolf_achievements__selftest'; ACH_STEAM_OK=false;
   document.getElementById('title').classList.add('hidden');
   document.getElementById('over').classList.add('hidden');
   const rows=[]; let pass=0, fail=0;
@@ -5439,6 +5467,7 @@ loadAchievements();
   setSlot(1); loadBindings();
 
   // v0.17: 成就 / QR / 雲端
+  const achBackup=(()=>{ try{ return localStorage.getItem(ACH_KEY); }catch(e){ return null; } })();
   const snap={kills:G.kills, level:G.level, quest:G.quest, gold:G.gold, xp:G.xp,
     truth:G.story.truth, seal:G.story.seal, tower:G.tower.stage};
   G.ach={unlocked:{}};
@@ -5457,6 +5486,23 @@ loadAchievements();
   const achLocked=document.querySelectorAll('#achList .achRow.locked').length;
   closeAchievements();
   ok('成就面板', achOpen && achRows===ACHIEVEMENTS.length && achLocked>0, 'rows='+achRows+' locked='+achLocked);
+  {openSettings(); openAchievements();
+   const az=parseInt(getComputedStyle(document.getElementById('achPanel')).zIndex,10)||0;
+   const sz=parseInt(getComputedStyle(document.getElementById('settingsPanel')).zIndex,10)||0;
+   const hasClose=!!document.getElementById('achClose');
+   closeAchievements(); closeSettings();
+   ok('成就面板喺設定之上', az>sz && hasClose, 'ach='+az+' set='+sz);}
+  {const prev=(()=>{try{return localStorage.getItem(ACH_KEY);}catch(e){return null;}})();
+   try{ localStorage.setItem(ACH_KEY, JSON.stringify({first_blood:1})); }catch(e){}
+   G.ach={unlocked:{}}; loadAchievements();
+   ok('成就開機載入', achUnlocked('first_blood'));
+   try{ if(prev===null) localStorage.removeItem(ACH_KEY); else localStorage.setItem(ACH_KEY, prev); }catch(e){}}
+  {const pq=G.quest, pt=G.story.truth;
+   G.ach={unlocked:{}}; G.quest=9; G.story.truth=true; G.achT=1.19;
+   tickAchievements(0.05);
+   const got=achUnlocked('truth');
+   G.quest=pq; G.story.truth=pt; G.achT=0;
+   ok('成就定時檢查', got);}
   openRumblePanel();
   const qrCv=document.getElementById('rumbleQr');
   const shareUrl=rumbleShareUrl();
@@ -5464,9 +5510,10 @@ loadAchievements();
   ok('分享碼 QR', !!qrCv && qrCv.width>10 && shareUrl.indexOf('?rumble=WR1-')>=0, 'w='+(qrCv?qrCv.width:0));
   ok('QR 連結可解碼', !!decodeRumbleCode(qrCode), (qrCode||'').slice(0,18));
   closeRumblePanel();
-  window.steamAchievements={calls:[], activate(n){ this.calls.push(n); return true; }};
-  G.ach={unlocked:{}}; unlockAchievement('veteran');
-  ok('Steam 成就 API', window.steamAchievements.calls.indexOf('ACH_VETERAN')>=0, window.steamAchievements.calls.join(','));
+  window.steamAchievements={calls:[], stores:0, activate(n){ this.calls.push(n); return true; }, store(){ this.stores++; return true; }};
+  ACH_STEAM_OK=true; G.ach={unlocked:{}}; unlockAchievement('veteran'); ACH_STEAM_OK=false;
+  ok('Steam 成就 API', window.steamAchievements.calls.indexOf('ACH_VETERAN')>=0 && window.steamAchievements.stores>=1,
+    window.steamAchievements.calls.join(',')+' store='+window.steamAchievements.stores);
   window.steamCloud={_d:{}, write(n,v){ this._d[n]=v; return true; }, read(n){ return this._d[n]||null; }};
   G.mode='play'; G.gold=4321; saveGame(3);
   const cloudKey=cloudSaveName(3);
@@ -5475,9 +5522,21 @@ loadAchievements();
   const rawCloud=cloudRead(3);
   let cloudGold=0; try{ cloudGold=JSON.parse(rawCloud).gold; }catch(e){}
   ok('Steam 雲端讀取', cloudGold===4321, 'gold='+cloudGold);
-  clearSave(3); delete window.steamCloud; delete window.steamAchievements;
+  {window.steamCloud={_d:{}, write(n,v){ this._d[n]=v; return true; }, read(n){ return this._d[n]||null; }, delete(n){ delete this._d[n]; return true; }};
+   clearSave(2); unmarkCloudDeleted(2);
+   window.steamCloud._d[cloudSaveName(2)]=JSON.stringify({v:4,level:9,gold:777,ts:Date.now()});
+   const meta=slotMeta(2);
+   const vis=hasSave(2) && !!meta && meta.level===9;
+   ok('雲端存檔可見', vis, 'meta='+JSON.stringify(meta));
+   clearSave(2);
+   const back=loadGame(2);
+   ok('刪檔唔會由雲端復活', !hasSave(2) && back===false, 'load='+back);
+   unmarkCloudDeleted(2); delete window.steamCloud._d[cloudSaveName(2)]; delete window.steamCloud;}
+  clearSave(3); delete window.steamAchievements;
   G.kills=snap.kills; G.level=snap.level; G.quest=snap.quest; G.gold=snap.gold; G.xp=snap.xp;
   G.story.truth=snap.truth; G.story.seal=snap.seal; G.tower.stage=snap.tower;
+  try{ if(achBackup===null) localStorage.removeItem(ACH_KEY); else localStorage.setItem(ACH_KEY, achBackup); }catch(e){}
+  unmarkCloudDeleted(2); unmarkCloudDeleted(3);
   loadAchievements();
   SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings(); loadBindings();
 
@@ -5696,6 +5755,9 @@ loadAchievements();
   chooseOption(0);
 
   setTimeout(()=>{
+    try{ localStorage.removeItem(ACH_KEY); }catch(e){}
+    ACH_KEY=realAchKey; ACH_STEAM_OK=true;
+    if(typeof loadAchievements==='function') loadAchievements();
     ok('結局畫面', G.mode==='win', 'mode='+G.mode);
     showEpilogue();
     ok('後日談', G.mode==='epilogue' && document.getElementById('epiBody').textContent.length>20, 'mode='+G.mode);
@@ -5856,6 +5918,7 @@ resetGame();
 cam.x=clamp(player.x-VW/2,0,W-VW);
 cam.y=clamp(player.y-VH/2,0,H-VH);
 migrateLegacySave();
+loadAchievements();
 if(hasSave()) document.getElementById('titleStart').innerHTML='按 <b>ENTER</b> 繼續　·　<b>N</b> 新遊戲';
 if(new URLSearchParams(location.search).get('play')==='1'){
   startGame(new URLSearchParams(location.search).get('fresh')==='1');

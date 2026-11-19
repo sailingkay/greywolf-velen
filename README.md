@@ -1,6 +1,6 @@
 # 灰狼：霧沼之獸 — 原創 IP 版
 
-**現時版本：v0.16.3**（120 項自我測試）　·　https://sailingkay.github.io/greywolf-velen/
+**現時版本：v0.17.1**（134 項自我測試）　·　https://sailingkay.github.io/greywolf-velen/
 
 由 fan 版自動改名而來（`tools/make_original_ip.py`）。
 
@@ -23,4 +23,4 @@
 - **文字層面**已換成原創名，但 SDXL 角色美術仍然係「白髮獵魔人」風格；
   真正上架前建議用原創角色設定重新生成所有 sprite。
 - 遊戲邏輯、關卡、故事結構不變。
-- 測試：`?test=1` 應為 120/120（與 fan 版相同）。
+- 測試：`?test=1` 應為 134/134（與 fan 版相同）。
