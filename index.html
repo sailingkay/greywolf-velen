@@ -456,6 +456,9 @@
       <div class="setRow"><span>音樂音量</span><input id="setMusic" type="range" min="0" max="100" value="90"></div>
       <div class="setRow"><span>8 方向行走動畫</span><input id="setDirs" type="checkbox" checked></div>
       <div class="setRow"><span>每 20 秒自動存檔</span><input id="setAuto" type="checkbox" checked></div>
+      <div class="setRow"><span>難度</span><select id="setDiff" class="setsel">
+        <option value="easy">簡單</option><option value="normal">普通</option><option value="hard">困難</option></select></div>
+      <div class="invHint" id="diffHint" style="margin:-2px 0 8px">原設計平衡</div>
       <div class="setRow"><span>震動強度</span><input id="setRumble" type="range" min="0" max="100" value="70"></div>
       <div class="setRow"><span>手掣</span><b id="padStatus">未連接</b></div>
       <div class="setRow"><span>手掣圖示主題</span><select id="setPadTheme" class="setsel">
@@ -541,10 +544,10 @@
       <h1>灰狼<span>：</span>霧沼之獸</h1>
       <div class="tsub">A dark-fantasy vertical slice · pure Canvas 2D</div>
       <div class="tstart" id="titleStart">按 <b>ENTER</b> 開始</div>
-      <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）</div>
+      <div class="tnote" style="margin-top:6px">S 存檔／設定　·　N 新遊戲（清除當前存檔）　·　難度：<b id="titleDiff" style="color:#c8a24a">普通</b></div>
       <div class="tctrl">左鍵 移動／攻擊　·　右鍵 重斬　·　雙擊 翻滾　·　<span data-hint-key="igni">1</span>／<span data-hint-key="aard">2</span>／<span data-hint-key="quen">3</span> 法印　·　<span data-hint-key="interact">E</span> 互動　·　<span data-hint-key="journal">J</span> 日誌</div>
       <div class="tnote">原創 IP 示範版，只作技術示範 · 由本地 agent「大肥魚」生成</div>
-      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.17.1 · 134 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
+      <div class="tnote" style="margin-top:8px;color:#4f4b41">v0.18.0 · 139 項自動測試（<span style="color:#8a7a55">?test=1</span>）</div>
     </div>
   </div>
 
@@ -1247,7 +1250,41 @@ try{ CUR_SLOT = Math.min(SLOT_COUNT, Math.max(1, parseInt(localStorage.getItem(S
 
 /* ---- v0.10：設定 ---- */
 const SETTINGS_KEY = 'whitewolf_settings';
-const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true, rumble:0.7, padTheme:'auto' };
+const DEFAULT_SETTINGS = { music:0.9, dirs:true, autosave:true, rumble:0.7, padTheme:'auto', difficulty:'normal' };
+const DIFFICULTIES = {
+  easy:  {name:'簡單', enemyHp:0.75, enemyDmg:0.6, hint:'敵人較弱、傷害較低，適合睇故事'},
+  normal:{name:'普通', enemyHp:1,    enemyDmg:1,   hint:'原設計平衡'},
+  hard:  {name:'困難', enemyHp:1.35, enemyDmg:1.5, hint:'敵人更硬、打得更痛'}
+};
+function diffKey(){
+  if(typeof G!=='undefined' && G && DIFFICULTIES[G.diff]) return G.diff;
+  return DIFFICULTIES[SETTINGS.difficulty]?SETTINGS.difficulty:'normal';
+}
+function diffCfg(){ return DIFFICULTIES[diffKey()]||DIFFICULTIES.normal; }
+function updateDiffUI(){
+  const sel=document.getElementById('setDiff'); if(sel) sel.value=diffKey();
+  const hint=document.getElementById('diffHint'); if(hint) hint.textContent=diffCfg().hint;
+  const t=document.getElementById('titleDiff'); if(t) t.textContent=diffCfg().name;
+}
+function setDifficulty(name, opts){
+  const o=opts||{};
+  const key=DIFFICULTIES[name]?name:'normal';
+  const oldKey=diffKey(), old=DIFFICULTIES[oldKey]||DIFFICULTIES.normal;
+  if(typeof G!=='undefined' && G) G.diff=key;
+  if(o.persist!==false){ SETTINGS.difficulty=key; saveSettings(); }
+  if(!o.noRescale && oldKey!==key && typeof enemies!=='undefined' && Array.isArray(enemies)){
+    const hr=DIFFICULTIES[key].enemyHp/old.enemyHp, dr=DIFFICULTIES[key].enemyDmg/old.enemyDmg;
+    for(const e of enemies){
+      if(!e || e.state==='dead') continue;
+      e.maxHp=Math.max(1,Math.round((e.maxHp||1)*hr));
+      e.hp=Math.max(0.01,Math.min(e.maxHp,(e.hp||0)*hr));
+      if(e.dmg!=null) e.dmg=e.dmg*dr;
+    }
+  }
+  updateDiffUI();
+  if(!o.silent && typeof toast==='function') toast('難度：'+DIFFICULTIES[key].name, DIFFICULTIES[key].hint);
+  return DIFFICULTIES[key];
+}
 const RUMBLE_KEY = 'whitewolf_rumble';
 const DEFAULT_RUMBLE = {
   enabled:true, intensity:0.7,
@@ -1307,9 +1344,10 @@ function spawnEnemy(type, x, y){
     werewolf:{hp:320, maxHp:320, speed:168, dmg:18, range:62, windup:.44, cd:1.0, xp:220, name:'狼人'},
     wispking:{hp:420, maxHp:420, speed:118, dmg:24, range:86, windup:.62, cd:1.2, xp:320, name:'夜泣王'}
   }[type];
+  const dc=diffCfg(), hp=Math.max(1,Math.round(base.hp*dc.enemyHp));
   const e = Object.assign({
     kind:'enemy', type, x, y, r: (type==='bogcrone'||type==='tombwisp')?22:14,
-    hp:base.hp, maxHp:base.maxHp, speed:base.speed, dmg:base.dmg,
+    hp, maxHp:hp, speed:base.speed, dmg:base.dmg*dc.enemyDmg,
     range:base.range, windup:base.windup, cdMax:base.cd, xp:base.xp, name:base.name,
     state:'idle', t:0, cd:0, stun:0, burn:0, slow:0,
     facing:0, flash:0, deadT:0, hitDone:false, aggro:false,
@@ -1332,6 +1370,7 @@ function resetGame(){
 
   G.gold=0; G.xp=0; G.level=1; G.kills=0; G.quest=0; G.dialog=null; G.bossOn=false; G.helped=false;
   G.toastTimer=0; G.shake=0; G.hitStop=0; G.saveTimer=0; G.rain=0.55; G.clickFx=[]; G.music=0;
+  G.diff = DIFFICULTIES[SETTINGS.difficulty]?SETTINGS.difficulty:'normal';
   G.story={truth:null, seal:null, hunterMet:false, locketFound:false, shrineDone:false};
   G.side={stage:0, cr:0, bogcrone:false};
   G.were={stage:0, marks:0, outcome:null};
@@ -1878,6 +1917,7 @@ function checkLevel(){
 function hurtPlayer(dmg, fromX, fromY){
   if(player.dead||G.mode!=='play') return;
   if(player.iframe>0) return;
+  dmg=dmg*diffCfg().enemyDmg;
   if(player.shield>0){
     player.shield=0;
     floatText(player.x,player.y-34,'盾印吸收','#d8c27a');
@@ -2658,7 +2698,7 @@ function saveGame(slot){
       claws:props.filter(p=>p.kind==='claw').map(p=>!!p.taken),
       dead:enemies.filter(e=>e.state==='dead').map(e=>e.uid),
       loot:loot.map(l=>({x:Math.round(l.x), y:Math.round(l.y), item:l.item})),
-      chestOpened, tombwispSpawned, shrineActive};
+      chestOpened, tombwispSpawned, shrineActive, diff:G.diff||'normal'};
     const s=slot||CUR_SLOT;
     unmarkCloudDeleted(s);
     storageSet(JSON.stringify(data), s);
@@ -2673,6 +2713,7 @@ function loadGame(slot){
   if(!raw) return false;
   let d; try{ d=JSON.parse(raw); }catch(e){ return false; }
   resetGame();
+  if(d.diff) setDifficulty(d.diff,{silent:true,noRescale:true});
   G.level=d.level||1; G.xp=d.xp||0; G.gold=d.gold||0; G.quest=d.quest||0; G.kills=d.kills||0;
   if(d.story) G.story=Object.assign({truth:null,seal:null,hunterMet:false,locketFound:false,shrineDone:false}, d.story);
   if(d.side) G.side=Object.assign({stage:0,cr:0,bogcrone:false}, d.side);
@@ -2885,6 +2926,7 @@ function openSettings(){
     const amp=cur?cur.intensity:(SETTINGS.rumble==null?0.7:SETTINGS.rumble);
     if(r) r.value = Math.round((amp==null?0.7:amp)*100); }
   const pt=document.getElementById('setPadTheme'); if(pt) pt.value=SETTINGS.padTheme||'auto';
+  updateDiffUI();
   const ar=document.getElementById('setA11yReduce'), ai=document.getElementById('setA11yImportant'), ac=document.getElementById('setA11yCue');
   if(ar) ar.checked=!!SETTINGS.a11yReduce;
   if(ai) ai.checked=!!SETTINGS.a11yImportantOnly;
@@ -5087,6 +5129,7 @@ function initSettingsUI(){
   wire('setAuto','change',()=>{ SETTINGS.autosave=document.getElementById('setAuto').checked; saveSettings(); });
   wire('setRumble','input',()=>{ setRumbleValue('intensity', (+document.getElementById('setRumble').value)/100); });
   wire('setPadTheme','change',()=>{ SETTINGS.padTheme=document.getElementById('setPadTheme').value||'auto'; saveSettings(); updatePadUI(); renderControls(); });
+  wire('setDiff','change',()=>{ setDifficulty(document.getElementById('setDiff').value); });
   wire('setA11yReduce','change',()=>{ SETTINGS.a11yReduce=document.getElementById('setA11yReduce').checked; saveSettings(); });
   wire('setA11yImportant','change',()=>{ SETTINGS.a11yImportantOnly=document.getElementById('setA11yImportant').checked; saveSettings(); });
   wire('setA11yCue','change',()=>{ SETTINGS.a11yVisualCue=document.getElementById('setA11yCue').checked; saveSettings(); });
@@ -5538,6 +5581,46 @@ loadAchievements();
   try{ if(achBackup===null) localStorage.removeItem(ACH_KEY); else localStorage.setItem(ACH_KEY, achBackup); }catch(e){}
   unmarkCloudDeleted(2); unmarkCloudDeleted(3);
   loadAchievements();
+  // v0.18: 難度
+  {setDifficulty('normal',{silent:true,noRescale:true});
+   const n=spawnEnemy('bogdweller',0,0);
+   setDifficulty('easy',{silent:true,noRescale:true});
+   const e=spawnEnemy('bogdweller',0,0);
+   setDifficulty('hard',{silent:true,noRescale:true});
+   const h=spawnEnemy('bogdweller',0,0);
+   ok('難度影響敵人數值', n.maxHp===36 && e.maxHp===27 && h.maxHp===49 && Math.abs(h.dmg-12)<0.001,
+     'normal='+n.maxHp+' easy='+e.maxHp+' hard='+h.maxHp);}
+  {setDifficulty('hard',{silent:true,noRescale:true});
+   player.dead=false; player.hp=100; player.iframe=0; player.shield=0;
+   hurtPlayer(10, player.x+40, player.y);
+   const hardHp=player.hp;
+   setDifficulty('easy',{silent:true,noRescale:true});
+   player.hp=100; player.iframe=0;
+   hurtPlayer(10, player.x+40, player.y);
+   ok('難度影響受傷', Math.abs(hardHp-85)<0.01 && Math.abs(player.hp-94)<0.01, 'hard='+hardHp+' easy='+player.hp);}
+  {setDifficulty('hard',{silent:true,noRescale:true});
+   const e=spawnEnemy('gnawer',0,0); e.hp=e.maxHp; enemies.push(e);
+   setDifficulty('easy',{silent:true});
+   const scaled=Math.round(e.maxHp)===36 && Math.abs(e.hp-e.maxHp)<0.01;
+   enemies=enemies.filter(x=>x!==e);
+   ok('中途切難度 rescale', scaled, 'hp='+Math.round(e.hp)+'/'+Math.round(e.maxHp));}
+  {setDifficulty('hard',{silent:true,noRescale:true});
+   G.mode='play'; saveGame(2);
+   setDifficulty('normal',{silent:true,noRescale:true});
+   loadGame(2);
+   const e=spawnEnemy('bogdweller',0,0);
+   ok('難度跟存檔', G.diff==='hard' && e.maxHp===49, 'diff='+G.diff+' hp='+e.maxHp);
+   setSlot(1);}
+  {setDifficulty('normal',{silent:true,noRescale:true});
+   openSettings();
+   const sel=document.getElementById('setDiff');
+   const ui=!!sel && sel.value==='normal';
+   if(sel){ sel.value='hard'; sel.dispatchEvent(new Event('change')); }
+   const changed=G.diff==='hard';
+   closeSettings();
+   setDifficulty('normal',{silent:true,noRescale:true});
+   ok('難度選單', ui && changed, 'ui='+ui+' changed='+changed);}
+
   SETTINGS=Object.assign({}, DEFAULT_SETTINGS); saveSettings(); applySettings(); loadBindings();
 
   // 戰鬥
@@ -5939,6 +6022,8 @@ setTimeout(runSelfTest, 400);
 }
 loadSettings();
 applySettings();
+setDifficulty(SETTINGS.difficulty||'normal',{silent:true,persist:false});
+{ const dq=new URLSearchParams(location.search).get('diff'); if(dq) setDifficulty(dq,{silent:true,persist:false}); }
 loadBindings();
 requestAnimationFrame(loop);
 
